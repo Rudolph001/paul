@@ -8,6 +8,7 @@ from utils.report_generator import ReportGenerator
 from utils.email_handler import EmailHandler
 from utils.anomaly_detector import AnomalyDetector
 from utils.dashboard import Dashboard
+from utils.admin_config import AdminConfig
 
 # Configure page
 st.set_page_config(
@@ -19,12 +20,14 @@ st.set_page_config(
 # Initialize components
 @st.cache_resource
 def get_components():
+    admin_config = AdminConfig()
     return {
         'risk_engine': RiskEngine(),
         'report_generator': ReportGenerator(),
         'email_handler': EmailHandler(),
         'anomaly_detector': AnomalyDetector(),
-        'dashboard': Dashboard(RiskEngine(), AnomalyDetector())
+        'dashboard': Dashboard(RiskEngine(), AnomalyDetector()),
+        'admin_config': admin_config
     }
 
 components = get_components()
@@ -255,7 +258,8 @@ def main():
             "👤 User Investigation",
             "🗄️ Database Analysis",
             "📋 Event Details",
-            "📤 Reports & Export"
+            "📤 Reports & Export",
+            "⚙️ Admin Configuration"
         ]
         
         st.markdown("### 🧭 Navigation")
@@ -531,6 +535,346 @@ def main():
                                         except Exception as e:
                                             st.error(f"❌ Failed to send email: {str(e)}")
                 
+                elif st.session_state.current_page == "Admin Configuration":
+                    st.header("⚙️ Admin Configuration")
+                    
+                    # Admin authentication (simple password protection)
+                    if 'admin_authenticated' not in st.session_state:
+                        st.session_state.admin_authenticated = False
+                    
+                    if not st.session_state.admin_authenticated:
+                        st.warning("🔒 Admin access required")
+                        admin_password = st.text_input("Enter admin password:", type="password")
+                        if st.button("Authenticate"):
+                            if admin_password == "admin123":  # Simple password - change in production
+                                st.session_state.admin_authenticated = True
+                                st.success("✅ Authentication successful")
+                                st.rerun()
+                            else:
+                                st.error("❌ Invalid password")
+                    else:
+                        admin_config = components['admin_config']
+                        config = admin_config.get_config()
+                        
+                        # Admin controls
+                        col1, col2 = st.columns([3, 1])
+                        with col1:
+                            st.markdown("**Configure risk scoring parameters and security indicators**")
+                        with col2:
+                            if st.button("🚪 Logout"):
+                                st.session_state.admin_authenticated = False
+                                st.rerun()
+                        
+                        tab1, tab2, tab3, tab4, tab5, tab6 = st.tabs([
+                            "🎯 Risk Weights", "📊 SQL Operations", "⏰ Time Settings", 
+                            "🔐 Sensitive Objects", "🏷️ Keywords", "📤 Import/Export"
+                        ])
+                        
+                        with tab1:
+                            st.subheader("Risk Component Weights")
+                            st.markdown("Adjust how much each factor contributes to the overall risk score:")
+                            
+                            with st.expander("ℹ️ About Risk Weights"):
+                                st.markdown("""
+                                **Risk weights determine the relative importance of different factors:**
+                                - **SQL Operation (30%):** Type of SQL command executed
+                                - **Timing (20%):** When the activity occurred (off-hours, weekends)
+                                - **Context (15%):** Context information and change tickets
+                                - **Sensitive Objects (25%):** Access to sensitive tables/data
+                                - **User Factors (5%):** User account type and behavior
+                                - **Program (5%):** Application or tool used
+                                
+                                **Note:** Total should equal 1.0 (100%)
+                                """)
+                            
+                            risk_weights = config['risk_weights']
+                            new_weights = {}
+                            
+                            col1, col2 = st.columns(2)
+                            with col1:
+                                new_weights['sql_operation'] = st.slider("SQL Operation Weight", 0.0, 1.0, risk_weights['sql_operation'], 0.05)
+                                new_weights['timing'] = st.slider("Timing Weight", 0.0, 1.0, risk_weights['timing'], 0.05)
+                                new_weights['context'] = st.slider("Context Weight", 0.0, 1.0, risk_weights['context'], 0.05)
+                            
+                            with col2:
+                                new_weights['sensitive_objects'] = st.slider("Sensitive Objects Weight", 0.0, 1.0, risk_weights['sensitive_objects'], 0.05)
+                                new_weights['user_factors'] = st.slider("User Factors Weight", 0.0, 1.0, risk_weights['user_factors'], 0.05)
+                                new_weights['program'] = st.slider("Program Weight", 0.0, 1.0, risk_weights['program'], 0.05)
+                            
+                            total_weight = sum(new_weights.values())
+                            if abs(total_weight - 1.0) > 0.01:
+                                st.warning(f"⚠️ Total weights: {total_weight:.2f} (should be 1.0)")
+                            else:
+                                st.success(f"✅ Total weights: {total_weight:.2f}")
+                            
+                            if st.button("Update Risk Weights"):
+                                config['risk_weights'] = new_weights
+                                admin_config.config = config
+                                if admin_config.save_config():
+                                    st.success("✅ Risk weights updated successfully!")
+                                    st.cache_resource.clear()  # Clear cache to reload components
+                                    st.rerun()
+                        
+                        with tab2:
+                            st.subheader("SQL Operation Risk Scores")
+                            st.markdown("Set risk scores for different SQL operations (0-50 points):")
+                            
+                            with st.expander("ℹ️ About SQL Operation Scores"):
+                                st.markdown("""
+                                **SQL operation scores represent the inherent risk of each command type:**
+                                - **DROP/TRUNCATE (35):** Permanent data destruction
+                                - **DELETE (30):** Data removal (potentially recoverable)
+                                - **ALTER/GRANT/REVOKE (25):** Schema or permission changes
+                                - **SELECT * (20):** Potential data dumps
+                                - **UPDATE (20):** Data modification
+                                - **INSERT (15):** New data creation
+                                - **CREATE (10):** Object creation
+                                - **SELECT (5):** Normal data queries
+                                """)
+                            
+                            sql_weights = config['sql_operation_weights']
+                            new_sql_weights = {}
+                            
+                            col1, col2 = st.columns(2)
+                            operations = list(sql_weights.keys())
+                            mid_point = len(operations) // 2
+                            
+                            with col1:
+                                for op in operations[:mid_point]:
+                                    new_sql_weights[op] = st.slider(f"{op} Risk Score", 0, 50, sql_weights[op], key=f"sql_{op}")
+                            
+                            with col2:
+                                for op in operations[mid_point:]:
+                                    new_sql_weights[op] = st.slider(f"{op} Risk Score", 0, 50, sql_weights[op], key=f"sql_{op}")
+                            
+                            if st.button("Update SQL Operation Scores"):
+                                config['sql_operation_weights'] = new_sql_weights
+                                admin_config.config = config
+                                if admin_config.save_config():
+                                    st.success("✅ SQL operation scores updated successfully!")
+                                    st.cache_resource.clear()
+                                    st.rerun()
+                        
+                        with tab3:
+                            st.subheader("Time-Based Risk Settings")
+                            
+                            with st.expander("ℹ️ About Time Settings"):
+                                st.markdown("""
+                                **Time-based risk factors help identify suspicious activity patterns:**
+                                - **Off-hours:** Activities outside normal business hours
+                                - **Weekend multiplier:** Extra risk for weekend activities
+                                - **Late night bonus:** Additional risk for very late activities
+                                - **Risk bonuses:** Additional points added for time-based factors
+                                """)
+                            
+                            time_settings = config['time_settings']
+                            
+                            col1, col2 = st.columns(2)
+                            with col1:
+                                st.markdown("**Off-Hours Definition:**")
+                                off_start = st.time_input("Off-hours start", time.fromisoformat(time_settings['off_hours_start']))
+                                off_end = st.time_input("Off-hours end", time.fromisoformat(time_settings['off_hours_end']))
+                                
+                                st.markdown("**Risk Bonuses (points):**")
+                                off_hours_bonus = st.slider("Off-hours bonus", 0, 30, time_settings['off_hours_bonus'])
+                                weekend_bonus = st.slider("Weekend bonus", 0, 20, time_settings['weekend_bonus'])
+                            
+                            with col2:
+                                st.markdown("**Multipliers:**")
+                                weekend_mult = st.slider("Weekend multiplier", 1.0, 3.0, time_settings['weekend_multiplier'], 0.1)
+                                
+                                st.markdown("**Special Time Periods:**")
+                                late_night_bonus = st.slider("Late night bonus (12-5 AM)", 0, 20, time_settings['late_night_bonus'])
+                            
+                            if st.button("Update Time Settings"):
+                                new_time_settings = {
+                                    'off_hours_start': off_start.strftime('%H:%M'),
+                                    'off_hours_end': off_end.strftime('%H:%M'),
+                                    'weekend_multiplier': weekend_mult,
+                                    'late_night_bonus': late_night_bonus,
+                                    'off_hours_bonus': off_hours_bonus,
+                                    'weekend_bonus': weekend_bonus
+                                }
+                                config['time_settings'] = new_time_settings
+                                admin_config.config = config
+                                if admin_config.save_config():
+                                    st.success("✅ Time settings updated successfully!")
+                                    st.cache_resource.clear()
+                                    st.rerun()
+                        
+                        with tab4:
+                            st.subheader("Sensitive Objects & Programs")
+                            
+                            col1, col2 = st.columns(2)
+                            
+                            with col1:
+                                st.markdown("**Sensitive Tables/Objects:**")
+                                
+                                with st.expander("ℹ️ About Sensitive Objects"):
+                                    st.markdown("""
+                                    **Sensitive objects are tables/databases containing critical data:**
+                                    - Employee information (Salaries, HR_Records)
+                                    - Customer data (CustomerData, SSN, Credit)
+                                    - Audit logs (AuditLog)
+                                    - Financial data (Payroll)
+                                    
+                                    **Impact:** +20 risk points when accessing these objects
+                                    """)
+                                
+                                sensitive_tables = config['sensitive_tables']
+                                new_sensitive = st.text_area(
+                                    "Sensitive tables (one per line):",
+                                    value='\n'.join(sensitive_tables),
+                                    height=150
+                                )
+                                
+                                if st.button("Update Sensitive Tables"):
+                                    new_tables = [table.strip() for table in new_sensitive.split('\n') if table.strip()]
+                                    config['sensitive_tables'] = new_tables
+                                    admin_config.config = config
+                                    if admin_config.save_config():
+                                        st.success("✅ Sensitive tables updated!")
+                                        st.cache_resource.clear()
+                                        st.rerun()
+                            
+                            with col2:
+                                st.markdown("**High-Risk Programs:**")
+                                
+                                with st.expander("ℹ️ About Program Risk"):
+                                    st.markdown("""
+                                    **High-risk programs (15 points):**
+                                    - Command line tools (sqlcmd, psql, mysql)
+                                    - Scripting tools (python, powershell, bash)
+                                    
+                                    **Medium-risk programs (8 points):**
+                                    - Management GUIs (SSMS, Workbench)
+                                    - Database tools (Toad, DBeaver)
+                                    """)
+                                
+                                high_risk_programs = config['high_risk_programs']
+                                new_high_risk = st.text_area(
+                                    "High-risk programs (one per line):",
+                                    value='\n'.join(high_risk_programs),
+                                    height=75
+                                )
+                                
+                                medium_risk_programs = config['medium_risk_programs']
+                                new_medium_risk = st.text_area(
+                                    "Medium-risk programs (one per line):",
+                                    value='\n'.join(medium_risk_programs),
+                                    height=75
+                                )
+                                
+                                if st.button("Update Program Lists"):
+                                    config['high_risk_programs'] = [p.strip() for p in new_high_risk.split('\n') if p.strip()]
+                                    config['medium_risk_programs'] = [p.strip() for p in new_medium_risk.split('\n') if p.strip()]
+                                    admin_config.config = config
+                                    if admin_config.save_config():
+                                        st.success("✅ Program lists updated!")
+                                        st.cache_resource.clear()
+                                        st.rerun()
+                        
+                        with tab5:
+                            st.subheader("Context Keywords")
+                            
+                            col1, col2 = st.columns(2)
+                            
+                            with col1:
+                                st.markdown("**High-Risk Keywords (+25 points):**")
+                                
+                                with st.expander("ℹ️ About Context Keywords"):
+                                    st.markdown("""
+                                    **High-risk keywords indicate potentially dangerous activities:**
+                                    - Emergency procedures
+                                    - Bypass/override actions
+                                    - Unauthorized changes
+                                    
+                                    **Low-risk keywords indicate normal operations:**
+                                    - Scheduled maintenance
+                                    - Approved changes
+                                    - Routine operations
+                                    """)
+                                
+                                high_risk_keywords = config['high_risk_keywords']
+                                new_high_keywords = st.text_area(
+                                    "High-risk keywords:",
+                                    value='\n'.join(high_risk_keywords),
+                                    height=150
+                                )
+                                
+                                if st.button("Update High-Risk Keywords"):
+                                    config['high_risk_keywords'] = [k.strip() for k in new_high_keywords.split('\n') if k.strip()]
+                                    admin_config.config = config
+                                    if admin_config.save_config():
+                                        st.success("✅ High-risk keywords updated!")
+                                        st.cache_resource.clear()
+                                        st.rerun()
+                            
+                            with col2:
+                                st.markdown("**Low-Risk Keywords (0 points):**")
+                                
+                                low_risk_keywords = config['low_risk_keywords']
+                                new_low_keywords = st.text_area(
+                                    "Low-risk keywords:",
+                                    value='\n'.join(low_risk_keywords),
+                                    height=150
+                                )
+                                
+                                if st.button("Update Low-Risk Keywords"):
+                                    config['low_risk_keywords'] = [k.strip() for k in new_low_keywords.split('\n') if k.strip()]
+                                    admin_config.config = config
+                                    if admin_config.save_config():
+                                        st.success("✅ Low-risk keywords updated!")
+                                        st.cache_resource.clear()
+                                        st.rerun()
+                        
+                        with tab6:
+                            st.subheader("Configuration Import/Export")
+                            
+                            col1, col2, col3 = st.columns(3)
+                            
+                            with col1:
+                                st.markdown("**Export Configuration:**")
+                                config_json = admin_config.export_config()
+                                st.download_button(
+                                    label="📥 Download Config",
+                                    data=config_json,
+                                    file_name=f"risk_config_{datetime.now().strftime('%Y%m%d_%H%M%S')}.json",
+                                    mime="application/json"
+                                )
+                            
+                            with col2:
+                                st.markdown("**Import Configuration:**")
+                                uploaded_config = st.file_uploader("Upload config file", type="json")
+                                
+                                if uploaded_config and st.button("Import Config"):
+                                    try:
+                                        config_content = uploaded_config.read().decode('utf-8')
+                                        if admin_config.import_config(config_content):
+                                            st.success("✅ Configuration imported successfully!")
+                                            st.cache_resource.clear()
+                                            st.rerun()
+                                        else:
+                                            st.error("❌ Invalid configuration file")
+                                    except Exception as e:
+                                        st.error(f"❌ Import failed: {e}")
+                            
+                            with col3:
+                                st.markdown("**Reset to Defaults:**")
+                                if st.button("🔄 Reset All Settings", type="secondary"):
+                                    if st.button("⚠️ Confirm Reset", type="primary"):
+                                        if admin_config.reset_to_defaults():
+                                            st.success("✅ Configuration reset to defaults!")
+                                            st.cache_resource.clear()
+                                            st.rerun()
+                                        else:
+                                            st.error("❌ Reset failed")
+                            
+                            # Current configuration preview
+                            st.markdown("**Current Configuration Preview:**")
+                            with st.expander("View current settings", expanded=False):
+                                st.json(config)
+                
                 else:
                     # Default to overview if unknown page
                     st.header("📊 Data Overview")
@@ -569,6 +913,62 @@ def main():
                 2025-06-24 10:15:00,bob,bob,MSSQL,FinanceDB,SSMS,QueryRunner,host3,10.0.0.3,Salaries,dbo,UPDATE Salaries SET Amount = ...,CHG00002 - schema update
                 ```
                 """)
+        elif st.session_state.current_page == "Admin Configuration":
+            st.header("⚙️ Admin Configuration")
+            
+            # Admin authentication (simple password protection)
+            if 'admin_authenticated' not in st.session_state:
+                st.session_state.admin_authenticated = False
+            
+            if not st.session_state.admin_authenticated:
+                st.warning("🔒 Admin access required")
+                st.info("Admin configuration is available without uploading data.")
+                admin_password = st.text_input("Enter admin password:", type="password")
+                if st.button("Authenticate"):
+                    if admin_password == "admin123":  # Simple password - change in production
+                        st.session_state.admin_authenticated = True
+                        st.success("✅ Authentication successful")
+                        st.rerun()
+                    else:
+                        st.error("❌ Invalid password")
+            else:
+                # Show admin panel (same code as above but without data dependency)
+                admin_config = components['admin_config']
+                config = admin_config.get_config()
+                
+                col1, col2 = st.columns([3, 1])
+                with col1:
+                    st.markdown("**Configure risk scoring parameters and security indicators**")
+                    st.info("💡 Changes will take effect for future analysis runs.")
+                with col2:
+                    if st.button("🚪 Logout"):
+                        st.session_state.admin_authenticated = False
+                        st.rerun()
+                
+                # Display current risk thresholds
+                st.markdown("### 📊 Current Risk Thresholds")
+                col1, col2, col3 = st.columns(3)
+                with col1:
+                    st.metric("High Risk", "≥ 70 points", help="Requires immediate attention")
+                with col2:
+                    st.metric("Medium Risk", "40-69 points", help="Monitor closely")
+                with col3:
+                    st.metric("Low Risk", "< 40 points", help="Normal operations")
+                
+                # Quick stats about current configuration
+                st.markdown("### ⚙️ Configuration Summary")
+                col1, col2, col3, col4 = st.columns(4)
+                with col1:
+                    st.metric("Sensitive Tables", len(config['sensitive_tables']))
+                with col2:
+                    st.metric("High-Risk Keywords", len(config['high_risk_keywords']))
+                with col3:
+                    st.metric("SQL Operations", len(config['sql_operation_weights']))
+                with col4:
+                    risk_weights_total = sum(config['risk_weights'].values())
+                    st.metric("Weight Total", f"{risk_weights_total:.2f}")
+                
+                st.info("📁 Upload data on the 'Upload & Overview' page to see the full admin configuration options.")
         else:
             st.warning("📁 Please upload a CSV file first to access this section.")
             st.info("Use the navigation menu to return to 'Upload & Overview' to upload your data.")
