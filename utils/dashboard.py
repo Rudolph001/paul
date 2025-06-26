@@ -41,33 +41,8 @@ class Dashboard:
             unique_dbs = user_df['DB_Name'].nunique()
             st.metric("Databases Accessed", unique_dbs)
         
-        # Risk timeline
-        if len(user_df) > 1:
-            fig = go.Figure()
-            fig.add_trace(go.Scatter(
-                x=user_df['_time'],
-                y=user_risk_scores,
-                mode='lines+markers',
-                name='Risk Score',
-                line=dict(color='#e74c3c', width=2),
-                marker=dict(size=8),
-                hovertemplate='<b>%{x}</b><br>Risk Score: %{y}<extra></extra>'
-            ))
-            
-            # Add threshold lines
-            fig.add_hline(y=70, line_dash="dash", line_color="red", 
-                         annotation_text="High Risk Threshold")
-            fig.add_hline(y=40, line_dash="dash", line_color="orange", 
-                         annotation_text="Medium Risk Threshold")
-            
-            fig.update_layout(
-                title=f"Risk Timeline for {user}",
-                xaxis_title="Time",
-                yaxis_title="Risk Score",
-                height=400,
-                showlegend=False
-            )
-            st.plotly_chart(fig, use_container_width=True)
+        # Professional animated timeline
+        self._create_professional_timeline(user_df, user_risk_scores, user_anomalies, user)
         
         # Activity storyline
         st.markdown("### 📚 Activity Timeline")
@@ -354,3 +329,201 @@ class Dashboard:
             st.warning(narrative)
         else:
             st.info(narrative)
+    
+    def _create_professional_timeline(self, user_df, risk_scores, anomalies, user):
+        """Create a professional animated timeline like the design shown"""
+        st.markdown("### 📈 Security Activity Timeline")
+        
+        if len(user_df) == 0:
+            st.info("No activities found for this user.")
+            return
+        
+        # Sort by time and get key events
+        sorted_df = user_df.sort_values('_time').reset_index(drop=True)
+        
+        # Create timeline HTML/CSS
+        timeline_html = f"""
+        <style>
+        .timeline-container {{
+            position: relative;
+            margin: 40px 0;
+            padding: 20px 0;
+        }}
+        
+        .timeline-line {{
+            position: absolute;
+            top: 60px;
+            left: 0;
+            right: 0;
+            height: 8px;
+            background: linear-gradient(90deg, #f39c12 0%, #e74c3c 25%, #3498db 50%, #9b59b6 75%, #f39c12 100%);
+            border-radius: 4px;
+            z-index: 1;
+        }}
+        
+        .timeline-events {{
+            display: flex;
+            justify-content: space-between;
+            position: relative;
+            z-index: 2;
+            margin-top: 20px;
+        }}
+        
+        .timeline-event {{
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            text-align: center;
+            flex: 1;
+            margin: 0 10px;
+        }}
+        
+        .event-icon {{
+            width: 60px;
+            height: 60px;
+            border-radius: 50%;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            font-size: 24px;
+            color: white;
+            margin-bottom: 10px;
+            box-shadow: 0 4px 8px rgba(0,0,0,0.2);
+            position: relative;
+            z-index: 3;
+        }}
+        
+        .event-high-risk {{
+            background: linear-gradient(135deg, #e74c3c, #c0392b);
+        }}
+        
+        .event-medium-risk {{
+            background: linear-gradient(135deg, #f39c12, #e67e22);
+        }}
+        
+        .event-low-risk {{
+            background: linear-gradient(135deg, #2ecc71, #27ae60);
+        }}
+        
+        .event-time {{
+            font-weight: bold;
+            color: #2c3e50;
+            margin-bottom: 5px;
+            font-size: 14px;
+        }}
+        
+        .event-description {{
+            font-size: 12px;
+            color: #7f8c8d;
+            max-width: 150px;
+            line-height: 1.4;
+        }}
+        
+        .event-risk {{
+            font-size: 11px;
+            font-weight: bold;
+            margin-top: 5px;
+            padding: 2px 8px;
+            border-radius: 10px;
+            color: white;
+        }}
+        
+        .risk-high {{ background: #e74c3c; }}
+        .risk-medium {{ background: #f39c12; }}
+        .risk-low {{ background: #2ecc71; }}
+        
+        .timeline-title {{
+            text-align: center;
+            margin-bottom: 30px;
+            color: #2c3e50;
+            font-size: 18px;
+            font-weight: bold;
+        }}
+        </style>
+        
+        <div class="timeline-container">
+            <div class="timeline-title">Security Events Timeline for {user}</div>
+            <div class="timeline-line"></div>
+            <div class="timeline-events">
+        """
+        
+        # Select key events to display (max 6 for good visualization)
+        if len(sorted_df) > 6:
+            # Get highest risk events
+            df_with_risk = sorted_df.copy()
+            df_with_risk['risk_score'] = risk_scores[:len(sorted_df)]
+            key_events = df_with_risk.nlargest(6, 'risk_score')
+            key_events = key_events.sort_values('_time')
+        else:
+            key_events = sorted_df
+        
+        # Generate timeline events
+        for idx, (_, event) in enumerate(key_events.iterrows()):
+            risk_score = risk_scores[idx] if idx < len(risk_scores) else 0
+            anomaly = anomalies[idx] if idx < len(anomalies) else {}
+            
+            # Determine risk level and icon
+            if risk_score >= 70:
+                risk_class = "event-high-risk"
+                risk_label = "risk-high"
+                icon = "⚠️"
+            elif risk_score >= 40:
+                risk_class = "event-medium-risk" 
+                risk_label = "risk-medium"
+                icon = "⚡"
+            else:
+                risk_class = "event-low-risk"
+                risk_label = "risk-low"
+                icon = "✓"
+            
+            # Add anomaly indicators
+            if anomaly.get('off_hours'):
+                icon = "🌙"
+            elif anomaly.get('unusual_volume'):
+                icon = "📊"
+            elif anomaly.get('atypical_behavior'):
+                icon = "🔍"
+            
+            time_str = event['_time'].strftime('%H:%M')
+            date_str = event['_time'].strftime('%m/%d')
+            action = self.risk_engine.explain_sql(event['Statement'])
+            
+            timeline_html += f"""
+                <div class="timeline-event">
+                    <div class="event-icon {risk_class}">
+                        {icon}
+                    </div>
+                    <div class="event-time">{time_str}</div>
+                    <div class="event-time">{date_str}</div>
+                    <div class="event-description">
+                        {action[:50]}...
+                    </div>
+                    <div class="event-description">
+                        <strong>{event['DB_Name']}</strong><br/>
+                        {event['Accessed_Obj'][:20]}...
+                    </div>
+                    <div class="event-risk {risk_label}">
+                        Risk: {risk_score:.0f}
+                    </div>
+                </div>
+            """
+        
+        timeline_html += """
+            </div>
+        </div>
+        """
+        
+        # Display the timeline
+        st.components.v1.html(timeline_html, height=300)
+        
+        # Add summary stats below timeline
+        col1, col2, col3 = st.columns(3)
+        with col1:
+            avg_risk = np.mean(risk_scores) if risk_scores else 0
+            st.metric("Average Risk Score", f"{avg_risk:.1f}/100")
+        with col2:
+            peak_risk = max(risk_scores) if risk_scores else 0
+            st.metric("Peak Risk Event", f"{peak_risk:.0f}/100")
+        with col3:
+            time_span = (user_df['_time'].max() - user_df['_time'].min()).total_seconds() / 3600
+            st.metric("Activity Timespan", f"{time_span:.1f} hours")
