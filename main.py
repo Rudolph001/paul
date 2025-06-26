@@ -57,26 +57,46 @@ def load_csv(upload):
             'datetime': '_time',
             'user': 'OS_User',
             'username': 'OS_User',
+            'os_user': 'OS_User',
+            'exec_user': 'Exec_User',
             'database': 'DB_Name',
             'db': 'DB_Name',
+            'db_name': 'DB_Name',
+            'db_type': 'DB_Type',
             'sql': 'Statement',
             'query': 'Statement',
             'statement': 'Statement',
             'object': 'Accessed_Obj',
             'table': 'Accessed_Obj',
+            'accessed_obj': 'Accessed_Obj',
+            'accessed_obj_owner': 'Accessed_Obj_Owner',
             'host': 'Src_Host',
+            'src_host': 'Src_Host',
             'ip': 'Src_IP',
-            'context': 'MS_Context'
+            'src_ip': 'Src_IP',
+            'context': 'MS_Context',
+            'ms_context': 'MS_Context',
+            'program': 'Program',
+            'module': 'Module'
         }
         
-        # Auto-map columns
+        # Auto-map columns - handle exact matches first, then lowercase
+        mapped_columns = []
         for available_col in df.columns:
-            lower_col = available_col.lower().strip()
+            # Check for exact match first
+            if available_col in REQUIRED_COLUMNS:
+                continue  # Already correct
+            
+            # Check lowercase and stripped versions
+            lower_col = available_col.lower().strip().replace(' ', '_')
             if lower_col in column_mapping:
                 target_col = column_mapping[lower_col]
                 if target_col not in df.columns:
                     df.rename(columns={available_col: target_col}, inplace=True)
-                    st.success(f"Mapped '{available_col}' to '{target_col}'")
+                    mapped_columns.append(f"'{available_col}' → '{target_col}'")
+        
+        if mapped_columns:
+            st.success("Mapped columns: " + ", ".join(mapped_columns))
         
         # Check for required columns
         missing_cols = [col for col in REQUIRED_COLUMNS if col not in df.columns]
@@ -98,7 +118,7 @@ def load_csv(upload):
         
         # Parse datetime
         if '_time' in df.columns:
-            df['_time'] = pd.to_datetime(df['_time'], errors='coerce', infer_datetime_format=True)
+            df['_time'] = pd.to_datetime(df['_time'], errors='coerce')
             
             invalid_dates = df['_time'].isna().sum()
             if invalid_dates > 0:
