@@ -1,0 +1,195 @@
+🛠️ App Title:
+Insider Threat SQL Activity Explainer
+
+🎯 Objective:
+Create a web-based Streamlit UI that:
+
+Ingests Trellix-style SQL logs via CSV.
+
+Explains each SQL statement in plain English with contextual narrative.
+
+Builds a timeline/storyline view per user.
+
+Highlights sensitive object access and unauthorized activity.
+
+Flags DML/DDL/DCL activity, SELECT *, sensitive table access, and off-hours queries.
+
+Allows non-technical reviewers (e.g., compliance teams) to understand SQL activity clearly.
+
+Provides a summary “story” of user actions within a selected time window.
+
+🧱 Components:
+1. Frontend (Streamlit):
+File uploader
+
+Filters: User, Time range
+
+📜 Narrative timeline
+
+📋 Tabular event viewer
+
+📖 Summary overview
+
+Highlight badges:
+
+🚨 Unauthorized change
+
+⚠️ Sensitive table access
+
+2. Backend Logic:
+CSV parser
+
+SQL summarization (no API dependency)
+
+Narrative generator in third person, e.g.:
+"Bob accessed the FinanceDB and updated salaries on June 5th at 9:13 AM. This was linked to CHG00007, a security patch for HR systems."
+
+Summary generator for selected time window
+
+Suspicious activity detector:
+
+SELECT *
+
+Sensitive table access
+
+"unauthorized" markers
+
+📦 Required Files
+📝 main.py (Core App)
+python
+Copy
+Edit
+import pandas as pd
+import streamlit as st
+from datetime import datetime
+
+# Sensitive objects
+SENSITIVE_TABLES = ['Salaries', 'Employees', 'HR_Records', 'CustomerData', 'AuditLog']
+
+# Load CSV
+@st.cache_data
+def load_csv(upload):
+    return pd.read_csv(upload, parse_dates=['_time'])
+
+# Explain SQL
+def explain_sql(statement):
+    s = statement.upper()
+    if "SELECT *" in s:
+        return "queried all columns from a table — may indicate data dump"
+    elif "DELETE" in s:
+        return "deleted records — potentially destructive"
+    elif "UPDATE" in s:
+        return "updated sensitive information"
+    elif "INSERT" in s:
+        return "inserted new records into the database"
+    elif "GRANT" in s or "REVOKE" in s:
+        return "modified user privileges"
+    elif "DROP" in s or "ALTER" in s:
+        return "changed the database schema"
+    return "executed a custom SQL query"
+
+# Generate third-person narrative
+def generate_story(row):
+    time_str = row['_time'].strftime("%Y-%m-%d %H:%M")
+    action = explain_sql(row['Statement'])
+    context = row['MS_Context']
+    sensitive = "⚠️ Accessed sensitive table" if any(s in row['Accessed_Obj'] for s in SENSITIVE_TABLES) else ""
+    risk = "🚨 Unauthorized change" if "unauthorized" in context.lower() else ""
+    return f"""{row['OS_User']} accessed the {row['DB_Name']} database and {action} on `{row['Accessed_Obj']}` using {row['Program']} from {row['Src_IP']} on {time_str}.
+This activity was linked to: *{context}*. {sensitive} {risk}
+"""
+
+# Summary over time window
+def generate_summary(df):
+    users = df['OS_User'].unique()
+    start_time = df['_time'].min().strftime("%Y-%m-%d %H:%M")
+    end_time = df['_time'].max().strftime("%Y-%m-%d %H:%M")
+    actions = df['Statement'].apply(explain_sql).value_counts().to_dict()
+
+    summary = f"Between {start_time} and {end_time}, the following users were active: {', '.join(users)}.\n"
+    summary += "They performed the following types of actions:\n"
+    for a, c in actions.items():
+        summary += f"- {c} instances of {a}\n"
+
+    sensitive_count = df['Accessed_Obj'].apply(lambda x: any(s in x for s in SENSITIVE_TABLES)).sum()
+    unauthorized_count = df['MS_Context'].str.lower().str.contains("unauthorized").sum()
+    if sensitive_count:
+        summary += f"⚠️ {sensitive_count} queries involved sensitive table access.\n"
+    if unauthorized_count:
+        summary += f"🚨 {unauthorized_count} queries were flagged as unauthorized changes.\n"
+    return summary.strip()
+
+# Streamlit UI
+st.set_page_config("SQL Threat Explainer", layout="wide")
+st.title("🔍 Insider Threat SQL Activity Explainer")
+
+uploaded_file = st.file_uploader("Upload Trellix SQL CSV", type="csv")
+
+if uploaded_file:
+    df = load_csv(uploaded_file)
+
+    # Date filter
+    start_date = st.date_input("Start date", df['_time'].min().date())
+    end_date = st.date_input("End date", df['_time'].max().date())
+
+    # User filter
+    users = ["All"] + sorted(df['OS_User'].unique().tolist())
+    selected_user = st.selectbox("Filter by User", users)
+
+    # Apply filters
+    filtered_df = df[
+        (df['_time'].dt.date >= start_date) & (df['_time'].dt.date <= end_date)
+    ]
+    if selected_user != "All":
+        filtered_df = filtered_df[filtered_df['OS_User'] == selected_user]
+
+    st.subheader("📖 Summary of Activity")
+    st.markdown(generate_summary(filtered_df))
+
+    st.subheader("📜 Narrative Timeline")
+    for _, row in filtered_df.sort_values(by="_time").iterrows():
+        st.markdown(generate_story(row))
+
+    st.subheader("📋 Event Table")
+    filtered_df['Explanation'] = filtered_df['Statement'].apply(explain_sql)
+    st.dataframe(filtered_df[['OS_User', '_time', 'Statement', 'Explanation', 'MS_Context', 'Accessed_Obj']])
+else:
+    st.info("Please upload a CSV file with Trellix-style logs to begin.")
+📁 CSV Upload Format (Required Columns)
+Column Name	Example
+_time	2025-06-24 10:15:00
+OS_User	bob
+Exec_User	bob
+DB_Type	MSSQL
+DB_Name	FinanceDB
+Program	SQL Server Management Studio
+Module	QueryRunner
+Src_Host	host3
+Src_IP	10.0.0.3
+Accessed_Obj	Salaries
+Accessed_Obj_Owner	dbo
+Statement	UPDATE Salaries SET Amount = ...
+MS_Context	CHG00002 - schema update for audit
+
+✅ Replit Setup Instructions
+Language: Python
+Dependencies (install via .replit or shell):
+
+bash
+Copy
+Edit
+pip install streamlit pandas
+Run Command:
+
+bash
+Copy
+Edit
+streamlit run main.py
+🧠 Future Enhancements
+🔍 Embedding-based LLM summarization (OpenAI/GPT or local model)
+
+👥 User behavior profiling
+
+📄 Export timeline narratives to PDF
+
+📊 Multi-user dashboard with charts per day / user / activity type
