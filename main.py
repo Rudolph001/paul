@@ -7,6 +7,7 @@ from utils.risk_engine import RiskEngine
 from utils.report_generator import ReportGenerator
 from utils.email_handler import EmailHandler
 from utils.anomaly_detector import AnomalyDetector
+from utils.dashboard import Dashboard
 
 # Configure page
 st.set_page_config(
@@ -22,7 +23,8 @@ def get_components():
         'risk_engine': RiskEngine(),
         'report_generator': ReportGenerator(),
         'email_handler': EmailHandler(),
-        'anomaly_detector': AnomalyDetector()
+        'anomaly_detector': AnomalyDetector(),
+        'dashboard': Dashboard(RiskEngine(), AnomalyDetector())
     }
 
 components = get_components()
@@ -322,12 +324,45 @@ def main():
                     st.warning(f"No events found above risk threshold of {risk_threshold}")
                     return
                 
-                # Display summary
-                st.header("📖 Executive Summary")
-                summary_text = generate_comprehensive_summary(final_df, final_risk_scores, final_anomaly_data)
-                st.markdown(summary_text)
+                # Create navigation tabs for different views
+                tab1, tab2, tab3, tab4 = st.tabs(["📊 Dashboard", "📖 Executive Summary", "👤 User Stories", "🗄️ Database Stories"])
                 
-                # Risk distribution chart
+                with tab1:
+                    # Professional dashboard
+                    components['dashboard'].create_executive_dashboard(final_df, final_risk_scores, final_anomaly_data)
+                
+                with tab2:
+                    # Display summary
+                    summary_text = generate_comprehensive_summary(final_df, final_risk_scores, final_anomaly_data)
+                    st.markdown(summary_text)
+                
+                with tab3:
+                    # User storylines
+                    st.subheader("👤 Individual User Analysis")
+                    
+                    # User selection
+                    unique_users = final_df['OS_User'].unique()
+                    selected_story_user = st.selectbox("Select User for Detailed Story", unique_users, key="story_user")
+                    
+                    if selected_story_user:
+                        components['dashboard'].create_user_storyline(
+                            final_df, selected_story_user, final_risk_scores, final_anomaly_data
+                        )
+                
+                with tab4:
+                    # Database storylines
+                    st.subheader("🗄️ Database Security Analysis")
+                    
+                    # Database selection
+                    unique_dbs = final_df['DB_Name'].unique()
+                    selected_story_db = st.selectbox("Select Database for Detailed Analysis", unique_dbs, key="story_db")
+                    
+                    if selected_story_db:
+                        components['dashboard'].create_database_storyline(
+                            final_df, selected_story_db, final_risk_scores, final_anomaly_data
+                        )
+                
+                # Legacy charts section (keeping for compatibility)
                 col1, col2 = st.columns(2)
                 with col1:
                     risk_distribution = {
