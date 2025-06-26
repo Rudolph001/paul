@@ -35,23 +35,81 @@ REQUIRED_COLUMNS = ['_time', 'OS_User', 'Exec_User', 'DB_Type', 'DB_Name', 'Prog
 @st.cache_data
 def load_csv(upload):
     try:
-        df = pd.read_csv(upload)
+        # Try to read CSV with flexible parsing
+        df = pd.read_csv(upload, encoding='utf-8', on_bad_lines='skip')
         
-        # Validate required columns
+        if df.empty:
+            st.error("The uploaded file appears to be empty.")
+            return None
+        
+        # Show file preview
+        st.info(f"File loaded successfully! Found {len(df)} rows and {len(df.columns)} columns.")
+        with st.expander("Preview first 5 rows"):
+            st.dataframe(df.head())
+        
+        # Show available columns
+        st.info("Available columns: " + ", ".join(df.columns.tolist()))
+        
+        # Try to map common column variations
+        column_mapping = {
+            'time': '_time',
+            'timestamp': '_time',
+            'datetime': '_time',
+            'user': 'OS_User',
+            'username': 'OS_User',
+            'database': 'DB_Name',
+            'db': 'DB_Name',
+            'sql': 'Statement',
+            'query': 'Statement',
+            'statement': 'Statement',
+            'object': 'Accessed_Obj',
+            'table': 'Accessed_Obj',
+            'host': 'Src_Host',
+            'ip': 'Src_IP',
+            'context': 'MS_Context'
+        }
+        
+        # Auto-map columns
+        for available_col in df.columns:
+            lower_col = available_col.lower().strip()
+            if lower_col in column_mapping:
+                target_col = column_mapping[lower_col]
+                if target_col not in df.columns:
+                    df.rename(columns={available_col: target_col}, inplace=True)
+                    st.success(f"Mapped '{available_col}' to '{target_col}'")
+        
+        # Check for required columns
         missing_cols = [col for col in REQUIRED_COLUMNS if col not in df.columns]
         if missing_cols:
-            st.error(f"Missing required columns: {', '.join(missing_cols)}")
-            return None
-            
+            st.warning(f"Missing required columns: {', '.join(missing_cols)}")
+            # Create placeholder columns with default values
+            for col in missing_cols:
+                if col == '_time':
+                    df[col] = pd.Timestamp.now()
+                elif col in ['OS_User', 'Exec_User']:
+                    df[col] = 'unknown_user'
+                elif col in ['DB_Name', 'DB_Type']:
+                    df[col] = 'unknown_db'
+                elif col == 'Statement':
+                    df[col] = 'SELECT 1'
+                else:
+                    df[col] = 'unknown'
+            st.info("Created placeholder values for missing columns. Please review the data.")
+        
         # Parse datetime
-        df['_time'] = pd.to_datetime(df['_time'], errors='coerce')
-        if df['_time'].isna().any():
-            st.error("Invalid datetime format in _time column. Expected format: YYYY-MM-DD HH:MM:SS")
-            return None
+        if '_time' in df.columns:
+            df['_time'] = pd.to_datetime(df['_time'], errors='coerce', infer_datetime_format=True)
             
+            invalid_dates = df['_time'].isna().sum()
+            if invalid_dates > 0:
+                st.warning(f"Found {invalid_dates} rows with invalid datetime formats. Using current time as fallback.")
+                df['_time'].fillna(pd.Timestamp.now(), inplace=True)
+        
         return df
+        
     except Exception as e:
         st.error(f"Error loading CSV: {str(e)}")
+        st.info("Please ensure your file is a properly formatted CSV. You can download the sample template below.")
         return None
 
 # Get risk color based on score
@@ -165,6 +223,23 @@ def main():
     # Sidebar for controls
     with st.sidebar:
         st.header("📁 Data Upload")
+        
+        # Sample CSV download
+        sample_csv_data = """_time,OS_User,Exec_User,DB_Type,DB_Name,Program,Module,Src_Host,Src_IP,Accessed_Obj,Accessed_Obj_Owner,Statement,MS_Context
+2025-06-24 10:15:00,bob,bob,MSSQL,FinanceDB,SSMS,QueryRunner,host3,10.0.0.3,Salaries,dbo,UPDATE Salaries SET Amount = 75000 WHERE EmployeeID = 1001,CHG00002 - authorized salary adjustment
+2025-06-24 14:30:00,alice,alice,MSSQL,CustomerDB,Python,DataAnalysis,host1,10.0.0.1,CustomerData,dbo,SELECT * FROM CustomerData,Unauthorized data export attempt
+2025-06-24 22:45:00,john,john,MSSQL,AuditDB,sqlcmd,Command,host2,10.0.0.2,AuditLog,dbo,DELETE FROM AuditLog WHERE LogDate < '2025-01-01',Emergency cleanup - off hours
+2025-06-25 09:00:00,susan,susan,MSSQL,HRDB,SSMS,Management,host4,10.0.0.4,Employees,dbo,INSERT INTO Employees VALUES ('Jane Doe' 'Manager' 'IT'),CHG00003 - new employee onboarding
+2025-06-25 16:20:00,mike,mike,MSSQL,FinanceDB,Excel,ODBC,host5,10.0.0.5,Payroll,dbo,SELECT PayrollAmount FROM Payroll WHERE Department = 'Engineering',Routine payroll analysis"""
+        
+        st.download_button(
+            label="📥 Download Sample CSV Template",
+            data=sample_csv_data,
+            file_name="sample_sql_audit_log.csv",
+            mime="text/csv",
+            help="Download this template to see the expected CSV format"
+        )
+        
         uploaded_file = st.file_uploader("Upload Trellix SQL CSV", type="csv", help="Upload CSV with required columns for SQL log analysis")
         
         if uploaded_file:
