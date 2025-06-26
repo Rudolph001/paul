@@ -86,6 +86,25 @@ class Dashboard:
             st.metric("Sensitive Access", sensitive_access)
         
         # User activity heatmap
+        st.markdown("#### User Activity Heatmap")
+        with st.expander("ℹ️ About this heatmap"):
+            st.markdown("""
+            **What it shows:** Activity intensity for each user across different hours of the day
+            
+            **How to read:**
+            - **Darker red:** Higher activity volume at that time
+            - **Light/white:** Little to no activity
+            - **Rows:** Individual users
+            - **Columns:** Hours of the day (0-23)
+            
+            **Security indicators:**
+            - **Unusual patterns:** Users active at odd hours consistently
+            - **Concentrated activity:** Heavy usage in short time windows
+            - **Off-hours access:** Activity during nights/weekends may need investigation
+            
+            **Why it matters:** Helps identify behavioral anomalies and potential insider threat patterns.
+            """)
+        
         user_activity = db_df.groupby(['OS_User', db_df['_time'].dt.hour]).size().reset_index()
         user_activity.columns = ['User', 'Hour', 'Activities']
         
@@ -171,6 +190,19 @@ class Dashboard:
         col1, col2 = st.columns(2)
         
         with col1:
+            st.markdown("#### Risk Distribution")
+            with st.expander("ℹ️ About this chart"):
+                st.markdown("""
+                **What it shows:** Distribution of events across risk levels
+                
+                **How risk is calculated:**
+                - **High (70-100):** Sensitive data access, unauthorized changes, or suspicious patterns
+                - **Medium (40-69):** Potentially risky operations or off-hours activity
+                - **Low (0-39):** Normal database operations with standard permissions
+                
+                **Why it matters:** Helps identify the overall security posture and proportion of concerning activities.
+                """)
+            
             risk_levels = {
                 'Low (0-39)': sum(1 for score in risk_scores if score < 40),
                 'Medium (40-69)': sum(1 for score in risk_scores if 40 <= score < 70),
@@ -190,6 +222,19 @@ class Dashboard:
             st.plotly_chart(fig, use_container_width=True)
         
         with col2:
+            st.markdown("#### Activity by Hour of Day")
+            with st.expander("ℹ️ About this chart"):
+                st.markdown("""
+                **What it shows:** Number of database activities throughout a 24-hour period
+                
+                **How to interpret:**
+                - **Normal business hours (8AM-6PM):** Expected high activity
+                - **Off-hours activity:** May indicate legitimate overtime work or suspicious behavior
+                - **Night activity (10PM-6AM):** Often flagged for additional scrutiny
+                
+                **Why it matters:** Unusual timing patterns can indicate insider threats, unauthorized access, or compromised accounts.
+                """)
+            
             # Activity by hour
             df['hour'] = df['_time'].dt.hour
             hourly_activity = df.groupby('hour').size().reset_index()
@@ -243,6 +288,25 @@ class Dashboard:
         high_risk_events = df_with_risk[df_with_risk['risk_score'] >= 70].sort_values('_time', ascending=False).head(10)
         
         if not high_risk_events.empty:
+            st.markdown("#### High-Risk Events Timeline")
+            with st.expander("ℹ️ About this timeline"):
+                st.markdown("""
+                **What it shows:** Chronological view of high-risk database activities (≥70 risk score)
+                
+                **How to interpret:**
+                - **X-axis:** Time progression
+                - **Y-axis:** Users involved
+                - **Bubble size:** Risk score magnitude (larger = higher risk)
+                - **Color intensity:** Risk level (darker red = more dangerous)
+                
+                **Key patterns to watch:**
+                - **Clustering:** Multiple high-risk events in short timeframes
+                - **User patterns:** Same user repeatedly appearing
+                - **Time correlation:** Events happening at suspicious times
+                
+                **Why it matters:** Reveals attack timelines and helps correlate related security incidents.
+                """)
+            
             # Create timeline visualization
             fig = px.scatter(
                 high_risk_events,
@@ -333,6 +397,26 @@ class Dashboard:
     def _create_professional_timeline(self, user_df, risk_scores, anomalies, user):
         """Create a professional animated timeline like the design shown"""
         st.markdown("### 📈 Security Activity Timeline")
+        
+        with st.expander("ℹ️ About this timeline"):
+            st.markdown("""
+            **What it shows:** Visual progression of a user's most significant security events
+            
+            **How to read:**
+            - **Connected line:** Shows chronological progression of activities
+            - **Circle colors:** Risk levels (Red=High, Orange=Medium, Green=Low)
+            - **Icons:** Activity types and anomaly indicators
+                - ⚠️ High-risk activities
+                - ⚡ Medium-risk activities  
+                - ✓ Normal activities
+                - 🌙 Off-hours access
+                - 📊 Unusual data volume
+                - 🔍 Atypical behavior patterns
+            
+            **Selection method:** Shows up to 6 highest-risk events for focus
+            
+            **Why it matters:** Provides a clear narrative of user behavior patterns and security progression.
+            """)
         
         if len(user_df) == 0:
             st.info("No activities found for this user.")

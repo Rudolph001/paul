@@ -365,6 +365,19 @@ def main():
                 # Legacy charts section (keeping for compatibility)
                 col1, col2 = st.columns(2)
                 with col1:
+                    st.markdown("#### Risk Score Distribution")
+                    with st.expander("ℹ️ Chart Information"):
+                        st.markdown("""
+                        **Purpose:** Shows count of events in each risk category
+                        
+                        **Risk Categories:**
+                        - **High (70-100):** Immediate attention required
+                        - **Medium (40-69):** Monitor closely  
+                        - **Low (0-39):** Normal operations
+                        
+                        **Use this to:** Quickly assess overall security posture
+                        """)
+                    
                     risk_distribution = {
                         'High (70-100)': sum(1 for score in final_risk_scores if score >= 70),
                         'Medium (40-69)': sum(1 for score in final_risk_scores if 40 <= score < 70),
@@ -373,11 +386,28 @@ def main():
                     st.bar_chart(risk_distribution)
                 
                 with col2:
+                    st.subheader("👥 Users by Avg Risk")
+                    with st.expander("ℹ️ Ranking Information"):
+                        st.markdown("""
+                        **What this shows:** Users ranked by their average risk score
+                        
+                        **Calculation method:** 
+                        - Sum of all risk scores for each user
+                        - Divided by number of activities
+                        - Sorted from highest to lowest
+                        
+                        **How to use:**
+                        - **Top users:** May need additional monitoring
+                        - **Consistent high scores:** Potential training needs
+                        - **Sudden changes:** Investigate behavioral shifts
+                        
+                        **Note:** Consider both score and activity volume for context
+                        """)
+                    
                     # Top users by average risk
                     user_risks = final_df.copy()
                     user_risks['Risk_Score'] = final_risk_scores
                     user_avg_risk = user_risks.groupby('OS_User')['Risk_Score'].mean().sort_values(ascending=False)
-                    st.subheader("👥 Users by Avg Risk")
                     for user, avg_risk in user_avg_risk.head(5).items():
                         st.write(f"**{user}:** {avg_risk:.1f}")
                 
