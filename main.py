@@ -239,11 +239,36 @@ def generate_comprehensive_summary(df, risk_scores, anomaly_data):
 
 # Main application
 def main():
-    st.title("🔍 Insider Threat SQL Activity Explainer")
-    st.markdown("**Advanced Risk Analysis & Compliance Reporting**")
-    
-    # Sidebar for controls
+    # Professional navigation sidebar
     with st.sidebar:
+        st.title("🔍 SQL Threat Explainer")
+        st.markdown("---")
+        
+        # Navigation menu
+        if 'current_page' not in st.session_state:
+            st.session_state.current_page = "Upload & Overview"
+        
+        nav_options = [
+            "📁 Upload & Overview",
+            "📊 Executive Dashboard", 
+            "📈 Risk Analysis",
+            "👤 User Investigation",
+            "🗄️ Database Analysis",
+            "📋 Event Details",
+            "📤 Reports & Export"
+        ]
+        
+        st.markdown("### 🧭 Navigation")
+        for option in nav_options:
+            if st.button(option, key=f"nav_{option}", use_container_width=True):
+                st.session_state.current_page = option.split(" ", 1)[1]  # Remove emoji
+        
+        st.markdown("---")
+        
+        # Current page indicator
+        st.markdown(f"**Current:** {st.session_state.current_page}")
+        
+        st.markdown("---")
         st.header("📁 Data Upload")
         
         # Sample CSV download
@@ -266,6 +291,11 @@ def main():
         
         if uploaded_file:
             st.success("✅ File uploaded successfully")
+    
+    # Main content area
+    if st.session_state.current_page == "Upload & Overview":
+        st.title("🔍 Insider Threat SQL Activity Explainer")
+        st.markdown("**Advanced Risk Analysis & Compliance Reporting**")
     
     if uploaded_file:
         # Load data
@@ -324,204 +354,224 @@ def main():
                     st.warning(f"No events found above risk threshold of {risk_threshold}")
                     return
                 
-                # Create navigation tabs for different views
-                tab1, tab2, tab3, tab4 = st.tabs(["📊 Dashboard", "📖 Executive Summary", "👤 User Stories", "🗄️ Database Stories"])
-                
-                with tab1:
-                    # Professional dashboard
-                    components['dashboard'].create_executive_dashboard(final_df, final_risk_scores, final_anomaly_data)
-                
-                with tab2:
-                    # Display summary
+                # Navigation-based content rendering
+                if st.session_state.current_page == "Upload & Overview":
+                    # Overview page content
+                    st.header("📊 Data Overview")
                     summary_text = generate_comprehensive_summary(final_df, final_risk_scores, final_anomaly_data)
                     st.markdown(summary_text)
                 
-                with tab3:
-                    # User storylines
-                    st.subheader("👤 Individual User Analysis")
+                elif st.session_state.current_page == "Executive Dashboard":
+                    st.header("📊 Executive Dashboard")
+                    components['dashboard'].create_executive_dashboard(final_df, final_risk_scores, final_anomaly_data)
+                
+                elif st.session_state.current_page == "Risk Analysis":
+                    st.header("📈 Risk Analysis & Metrics")
+                    
+                    # Risk distribution charts
+                    col1, col2 = st.columns(2)
+                    with col1:
+                        st.markdown("#### Risk Score Distribution")
+                        with st.expander("ℹ️ Chart Information"):
+                            st.markdown("""
+                            **Purpose:** Shows count of events in each risk category
+                            
+                            **Risk Categories:**
+                            - **High (70-100):** Immediate attention required
+                            - **Medium (40-69):** Monitor closely  
+                            - **Low (0-39):** Normal operations
+                            
+                            **Use this to:** Quickly assess overall security posture
+                            """)
+                        
+                        risk_distribution = {
+                            'High (70-100)': sum(1 for score in final_risk_scores if score >= 70),
+                            'Medium (40-69)': sum(1 for score in final_risk_scores if 40 <= score < 70),
+                            'Low (0-39)': sum(1 for score in final_risk_scores if score < 40)
+                        }
+                        st.bar_chart(risk_distribution)
+                    
+                    with col2:
+                        st.subheader("👥 Users by Avg Risk")
+                        with st.expander("ℹ️ Ranking Information"):
+                            st.markdown("""
+                            **What this shows:** Users ranked by their average risk score
+                            
+                            **Calculation method:** 
+                            - Sum of all risk scores for each user
+                            - Divided by number of activities
+                            - Sorted from highest to lowest
+                            
+                            **How to use:**
+                            - **Top users:** May need additional monitoring
+                            - **Consistent high scores:** Potential training needs
+                            - **Sudden changes:** Investigate behavioral shifts
+                            
+                            **Note:** Consider both score and activity volume for context
+                            """)
+                        
+                        # Top users by average risk
+                        user_risks = final_df.copy()
+                        user_risks['Risk_Score'] = final_risk_scores
+                        user_avg_risk = user_risks.groupby('OS_User')['Risk_Score'].mean().sort_values(ascending=False)
+                        for user, avg_risk in user_avg_risk.head(5).items():
+                            st.write(f"**{user}:** {avg_risk:.1f}")
+                
+                elif st.session_state.current_page == "User Investigation":
+                    st.header("👤 User Investigation")
                     
                     # User selection
                     unique_users = final_df['OS_User'].unique()
-                    selected_story_user = st.selectbox("Select User for Detailed Story", unique_users, key="story_user")
+                    selected_story_user = st.selectbox("Select User for Detailed Investigation", unique_users, key="story_user")
                     
                     if selected_story_user:
                         components['dashboard'].create_user_storyline(
                             final_df, selected_story_user, final_risk_scores, final_anomaly_data
                         )
                 
-                with tab4:
-                    # Database storylines
-                    st.subheader("🗄️ Database Security Analysis")
+                elif st.session_state.current_page == "Database Analysis":
+                    st.header("🗄️ Database Security Analysis")
                     
                     # Database selection
                     unique_dbs = final_df['DB_Name'].unique()
-                    selected_story_db = st.selectbox("Select Database for Detailed Analysis", unique_dbs, key="story_db")
+                    selected_story_db = st.selectbox("Select Database for Analysis", unique_dbs, key="story_db")
                     
                     if selected_story_db:
                         components['dashboard'].create_database_storyline(
                             final_df, selected_story_db, final_risk_scores, final_anomaly_data
                         )
                 
-                # Legacy charts section (keeping for compatibility)
-                col1, col2 = st.columns(2)
-                with col1:
-                    st.markdown("#### Risk Score Distribution")
-                    with st.expander("ℹ️ Chart Information"):
-                        st.markdown("""
-                        **Purpose:** Shows count of events in each risk category
-                        
-                        **Risk Categories:**
-                        - **High (70-100):** Immediate attention required
-                        - **Medium (40-69):** Monitor closely  
-                        - **Low (0-39):** Normal operations
-                        
-                        **Use this to:** Quickly assess overall security posture
-                        """)
+                elif st.session_state.current_page == "Event Details":
+                    st.header("📋 Detailed Event Analysis")
                     
-                    risk_distribution = {
-                        'High (70-100)': sum(1 for score in final_risk_scores if score >= 70),
-                        'Medium (40-69)': sum(1 for score in final_risk_scores if 40 <= score < 70),
-                        'Low (0-39)': sum(1 for score in final_risk_scores if score < 40)
-                    }
-                    st.bar_chart(risk_distribution)
-                
-                with col2:
-                    st.subheader("👥 Users by Avg Risk")
-                    with st.expander("ℹ️ Ranking Information"):
-                        st.markdown("""
-                        **What this shows:** Users ranked by their average risk score
-                        
-                        **Calculation method:** 
-                        - Sum of all risk scores for each user
-                        - Divided by number of activities
-                        - Sorted from highest to lowest
-                        
-                        **How to use:**
-                        - **Top users:** May need additional monitoring
-                        - **Consistent high scores:** Potential training needs
-                        - **Sudden changes:** Investigate behavioral shifts
-                        
-                        **Note:** Consider both score and activity volume for context
-                        """)
+                    # Timeline view
+                    st.subheader("📜 Risk-Prioritized Timeline")
                     
-                    # Top users by average risk
-                    user_risks = final_df.copy()
-                    user_risks['Risk_Score'] = final_risk_scores
-                    user_avg_risk = user_risks.groupby('OS_User')['Risk_Score'].mean().sort_values(ascending=False)
-                    for user, avg_risk in user_avg_risk.head(5).items():
-                        st.write(f"**{user}:** {avg_risk:.1f}")
-                
-                # Timeline view
-                st.header("📜 Risk-Prioritized Timeline")
-                
-                # Sort by risk score descending
-                timeline_data = list(zip(final_df.iterrows(), final_risk_scores, final_anomaly_data))
-                timeline_data.sort(key=lambda x: x[1], reverse=True)
-                
-                for (_, row), risk_score, anomalies in timeline_data:
-                    with st.expander(f"{get_risk_color(risk_score)} {row['OS_User']} - {row['Accessed_Obj']} (Risk: {risk_score}/100)", expanded=False):
-                        narrative = generate_risk_narrative(row, risk_score, anomalies)
-                        st.markdown(narrative)
-                
-                # Detailed table
-                st.header("📋 Detailed Event Analysis")
-                
-                # Prepare display dataframe
-                display_df = final_df.copy()
-                display_df['Risk_Score'] = final_risk_scores
-                display_df['Risk_Level'] = [get_risk_color(score) for score in final_risk_scores]
-                display_df['Explanation'] = display_df['Statement'].apply(components['risk_engine'].explain_sql)
-                display_df['Anomalies'] = [
-                    ', '.join([
-                        key.replace('_', ' ').title() 
-                        for key, value in anomaly.items() 
-                        if value and key != 'volume_description'
-                    ]) or 'None'
-                    for anomaly in final_anomaly_data
-                ]
-                
-                # Display columns
-                display_columns = ['Risk_Level', 'Risk_Score', 'OS_User', '_time', 'DB_Name', 'Accessed_Obj', 'Explanation', 'Anomalies', 'MS_Context']
-                st.dataframe(
-                    display_df[display_columns].sort_values('Risk_Score', ascending=False),
-                    use_container_width=True
-                )
-                
-                # Export and email section
-                st.header("📤 Export & Communication")
-                
-                col1, col2, col3 = st.columns(3)
-                
-                with col1:
-                    # CSV Export
-                    csv_data = display_df.to_csv(index=False)
-                    st.download_button(
-                        label="📄 Download CSV Report",
-                        data=csv_data,
-                        file_name=f"sql_audit_report_{datetime.now().strftime('%Y%m%d_%H%M%S')}.csv",
-                        mime="text/csv"
+                    # Sort by risk score descending
+                    timeline_data = list(zip(final_df.iterrows(), final_risk_scores, final_anomaly_data))
+                    timeline_data.sort(key=lambda x: x[1], reverse=True)
+                    
+                    for (_, row), risk_score, anomalies in timeline_data:
+                        with st.expander(f"{get_risk_color(risk_score)} {row['OS_User']} - {row['Accessed_Obj']} (Risk: {risk_score}/100)", expanded=False):
+                            narrative = generate_risk_narrative(row, risk_score, anomalies)
+                            st.markdown(narrative)
+                    
+                    # Detailed table
+                    st.subheader("📊 Event Data Table")
+                    
+                    # Prepare display dataframe
+                    display_df = final_df.copy()
+                    display_df['Risk_Score'] = final_risk_scores
+                    display_df['Risk_Level'] = [get_risk_color(score) for score in final_risk_scores]
+                    display_df['Explanation'] = display_df['Statement'].apply(components['risk_engine'].explain_sql)
+                    display_df['Anomalies'] = [
+                        ', '.join([
+                            key.replace('_', ' ').title() 
+                            for key, value in anomaly.items() 
+                            if value and key != 'volume_description'
+                        ]) or 'None'
+                        for anomaly in final_anomaly_data
+                    ]
+                    
+                    # Display columns
+                    display_columns = ['Risk_Level', 'Risk_Score', 'OS_User', '_time', 'DB_Name', 'Accessed_Obj', 'Explanation', 'Anomalies', 'MS_Context']
+                    st.dataframe(
+                        display_df[display_columns].sort_values('Risk_Score', ascending=False),
+                        use_container_width=True
                     )
                 
-                with col2:
-                    # PDF Export
-                    if st.button("📑 Generate PDF Report"):
-                        with st.spinner("Generating PDF report..."):
-                            pdf_buffer = components['report_generator'].generate_pdf_report(
-                                final_df, final_risk_scores, final_anomaly_data, summary_text
-                            )
-                            st.download_button(
-                                label="📥 Download PDF Report",
-                                data=pdf_buffer,
-                                file_name=f"sql_threat_analysis_{datetime.now().strftime('%Y%m%d_%H%M%S')}.pdf",
-                                mime="application/pdf"
-                            )
+                elif st.session_state.current_page == "Reports & Export":
+                    st.header("📤 Export & Communication")
+                    
+                    col1, col2, col3 = st.columns(3)
+                    
+                    with col1:
+                        # CSV Export
+                        display_df = final_df.copy()
+                        display_df['Risk_Score'] = final_risk_scores
+                        display_df['Explanation'] = display_df['Statement'].apply(components['risk_engine'].explain_sql)
+                        csv_data = display_df.to_csv(index=False)
+                        st.download_button(
+                            label="📄 Download CSV Report",
+                            data=csv_data,
+                            file_name=f"sql_audit_report_{datetime.now().strftime('%Y%m%d_%H%M%S')}.csv",
+                            mime="text/csv"
+                        )
+                    
+                    with col2:
+                        # PDF Export
+                        if st.button("📑 Generate PDF Report"):
+                            with st.spinner("Generating PDF report..."):
+                                summary_text = generate_comprehensive_summary(final_df, final_risk_scores, final_anomaly_data)
+                                pdf_buffer = components['report_generator'].generate_pdf_report(
+                                    final_df, final_risk_scores, final_anomaly_data, summary_text
+                                )
+                                st.download_button(
+                                    label="📥 Download PDF Report",
+                                    data=pdf_buffer,
+                                    file_name=f"sql_threat_analysis_{datetime.now().strftime('%Y%m%d_%H%M%S')}.pdf",
+                                    mime="application/pdf"
+                                )
+                    
+                    with col3:
+                        # Email functionality
+                        if st.button("📧 Email Report"):
+                            with st.expander("Email Configuration", expanded=True):
+                                recipient = st.text_input("Recipient Email", placeholder="security@company.com")
+                                subject = st.text_input("Subject", value=f"SQL Threat Analysis Report - {datetime.now().strftime('%Y-%m-%d')}")
+                                
+                                if st.button("Send Email") and recipient:
+                                    with st.spinner("Sending email..."):
+                                        try:
+                                            summary_text = generate_comprehensive_summary(final_df, final_risk_scores, final_anomaly_data)
+                                            components['email_handler'].send_outlook_email(
+                                                recipient, subject, summary_text, final_df, final_risk_scores
+                                            )
+                                            st.success("✅ Email sent successfully!")
+                                        except Exception as e:
+                                            st.error(f"❌ Failed to send email: {str(e)}")
                 
-                with col3:
-                    # Email functionality
-                    if st.button("📧 Email Report"):
-                        with st.expander("Email Configuration", expanded=True):
-                            recipient = st.text_input("Recipient Email", placeholder="security@company.com")
-                            subject = st.text_input("Subject", value=f"SQL Threat Analysis Report - {datetime.now().strftime('%Y-%m-%d')}")
-                            
-                            if st.button("Send Email") and recipient:
-                                with st.spinner("Sending email..."):
-                                    try:
-                                        components['email_handler'].send_outlook_email(
-                                            recipient, subject, summary_text, final_df, final_risk_scores
-                                        )
-                                        st.success("✅ Email sent successfully!")
-                                    except Exception as e:
-                                        st.error(f"❌ Failed to send email: {str(e)}")
+                else:
+                    # Default to overview if unknown page
+                    st.header("📊 Data Overview")
+                    summary_text = generate_comprehensive_summary(final_df, final_risk_scores, final_anomaly_data)
+                    st.markdown(summary_text)
+                
+                
             
             else:
                 st.warning("No data found for the selected date range and user filter.")
     
     else:
-        # Instructions
-        st.info("📁 Please upload a CSV file with Trellix-style SQL logs to begin analysis.")
-        
-        with st.expander("📋 Required CSV Format", expanded=True):
-            st.markdown("""
-            **Required Columns:**
-            - `_time`: Timestamp (YYYY-MM-DD HH:MM:SS)
-            - `OS_User`: Operating system user
-            - `Exec_User`: Executing user
-            - `DB_Type`: Database type (e.g., MSSQL, MySQL)
-            - `DB_Name`: Database name
-            - `Program`: Application used
-            - `Module`: Module or component
-            - `Src_Host`: Source hostname
-            - `Src_IP`: Source IP address
-            - `Accessed_Obj`: Database object accessed
-            - `Accessed_Obj_Owner`: Object owner
-            - `Statement`: SQL statement
-            - `MS_Context`: Context or change ticket information
+        # Instructions based on current page
+        if st.session_state.current_page == "Upload & Overview":
+            st.info("📁 Please upload a CSV file with Trellix-style SQL logs to begin analysis.")
             
-            **Example Row:**
-            ```
-            2025-06-24 10:15:00,bob,bob,MSSQL,FinanceDB,SSMS,QueryRunner,host3,10.0.0.3,Salaries,dbo,UPDATE Salaries SET Amount = ...,CHG00002 - schema update
-            ```
-            """)
+            with st.expander("📋 Required CSV Format", expanded=True):
+                st.markdown("""
+                **Required Columns:**
+                - `_time`: Timestamp (YYYY-MM-DD HH:MM:SS)
+                - `OS_User`: Operating system user
+                - `Exec_User`: Executing user
+                - `DB_Type`: Database type (e.g., MSSQL, MySQL)
+                - `DB_Name`: Database name
+                - `Program`: Application used
+                - `Module`: Module or component
+                - `Src_Host`: Source hostname
+                - `Src_IP`: Source IP address
+                - `Accessed_Obj`: Database object accessed
+                - `Accessed_Obj_Owner`: Object owner
+                - `Statement`: SQL statement
+                - `MS_Context`: Context or change ticket information
+                
+                **Example Row:**
+                ```
+                2025-06-24 10:15:00,bob,bob,MSSQL,FinanceDB,SSMS,QueryRunner,host3,10.0.0.3,Salaries,dbo,UPDATE Salaries SET Amount = ...,CHG00002 - schema update
+                ```
+                """)
+        else:
+            st.warning("📁 Please upload a CSV file first to access this section.")
+            st.info("Use the navigation menu to return to 'Upload & Overview' to upload your data.")
 
 if __name__ == "__main__":
     main()
