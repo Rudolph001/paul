@@ -7,16 +7,16 @@ class RiskEngine:
     def __init__(self):
         # Risk weights for different factors
         self.sql_operation_weights = {
-            'DELETE': 30,
-            'DROP': 35,
-            'ALTER': 25,
-            'UPDATE': 20,
+            'DELETE': 45,
+            'DROP': 50,
+            'ALTER': 35,
+            'UPDATE': 30,
             'INSERT': 15,
-            'GRANT': 25,
-            'REVOKE': 25,
-            'SELECT *': 20,
-            'TRUNCATE': 35,
-            'CREATE': 10,
+            'GRANT': 40,
+            'REVOKE': 35,
+            'SELECT *': 25,
+            'TRUNCATE': 50,
+            'CREATE': 15,
             'SELECT': 5
         }
         
@@ -98,6 +98,16 @@ class RiskEngine:
     
     def get_time_risk(self, timestamp):
         """Calculate risk score based on time of access"""
+        if pd.isna(timestamp):
+            return 5  # Default risk for unknown times
+        
+        # Convert string to datetime if needed
+        if isinstance(timestamp, str):
+            try:
+                timestamp = pd.to_datetime(timestamp)
+            except:
+                return 5
+        
         risk_score = 0
         
         # Check if weekend
@@ -146,7 +156,7 @@ class RiskEngine:
         obj_lower = str(accessed_obj).lower()
         for sensitive_table in sensitive_tables:
             if sensitive_table.lower() in obj_lower:
-                return 20
+                return 30
         
         # Check for other sensitive patterns
         sensitive_patterns = [
@@ -156,7 +166,7 @@ class RiskEngine:
         
         for pattern in sensitive_patterns:
             if pattern in obj_lower:
-                return 15
+                return 20
         
         return 0
     
@@ -230,11 +240,15 @@ class RiskEngine:
             )
             
             # Apply multipliers for high-risk combinations
-            if sensitive_risk > 0 and sql_risk >= 20:
-                total_risk *= 1.2  # 20% increase for sensitive operations
+            if sensitive_risk > 0 and sql_risk >= 30:
+                total_risk *= 1.8  # 80% increase for sensitive operations
             
             if time_risk > 0 and context_risk >= 20:
-                total_risk *= 1.15  # 15% increase for off-hours unauthorized activity
+                total_risk *= 1.5  # 50% increase for off-hours unauthorized activity
+            
+            # Super high risk for dangerous combinations
+            if sensitive_risk > 0 and sql_risk >= 40 and time_risk > 0:
+                total_risk *= 2.0  # Double risk for dangerous off-hours sensitive operations
             
             # Ensure score is within 0-100 range
             return min(max(int(total_risk), 0), 100)
