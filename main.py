@@ -295,9 +295,20 @@ def main():
         elif st.session_state.current_page == "User Investigation":
             st.header("👤 User Investigation")
             
-            # User selection
+            # User selection - check if user was selected from My Peeps drill-down
             unique_users = final_df['OS_User'].unique()
-            selected_story_user = st.selectbox("Select User for Detailed Investigation", unique_users, key="story_user")
+            
+            # Set default selection from My Peeps drill-down
+            default_index = 0
+            if 'selected_user_for_investigation' in st.session_state:
+                user_from_peeps = st.session_state.selected_user_for_investigation
+                if user_from_peeps in unique_users:
+                    default_index = list(unique_users).index(user_from_peeps)
+                # Clear the session state after using it
+                del st.session_state.selected_user_for_investigation
+            
+            selected_story_user = st.selectbox("Select User for Detailed Investigation", unique_users, 
+                                             index=default_index, key="story_user")
             
             if selected_story_user:
                 components['dashboard'].create_user_storyline(
@@ -395,6 +406,12 @@ def main():
                                     st.warning(risk_level) 
                                 else:
                                     st.success(risk_level)
+                            
+                            # Add drill-down link to User Investigation
+                            if st.button(f"🔍 Investigate", key=f"investigate_{user}", use_container_width=True):
+                                st.session_state.current_page = "User Investigation"
+                                st.session_state.selected_user_for_investigation = user
+                                st.rerun()
                     
                     with col2:
                         # Narrative section using Streamlit components
