@@ -42,6 +42,16 @@ def load_test_data():
     """Load the generated test dataset"""
     try:
         df = pd.read_csv('test_sql_audit_5000_rows.csv', encoding='utf-8')
+        
+        # Parse datetime column
+        if '_time' in df.columns:
+            df['_time'] = pd.to_datetime(df['_time'], errors='coerce', format='mixed')
+            
+            invalid_dates = df['_time'].isna().sum()
+            if invalid_dates > 0:
+                st.warning(f"Found {invalid_dates} rows with invalid datetime formats in test data. Using current time as fallback.")
+                df['_time'] = df['_time'].fillna(pd.Timestamp.now())
+        
         return df
     except Exception as e:
         st.error(f"Error loading test dataset: {str(e)}")
