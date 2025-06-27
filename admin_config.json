@@ -1,0 +1,103 @@
+{
+  "sql_operation_weights": {
+    "DELETE": 50,
+    "DROP": 50,
+    "ALTER": 50,
+    "UPDATE": 20,
+    "INSERT": 15,
+    "GRANT": 25,
+    "REVOKE": 25,
+    "SELECT *": 20,
+    "TRUNCATE": 35,
+    "CREATE": 10,
+    "SELECT": 5
+  },
+  "risk_weights": {
+    "sql_operation": 0.2,
+    "timing": 0.2,
+    "context": 0.2,
+    "sensitive_objects": 0.3,
+    "user_factors": 0.05,
+    "program": 0.05
+  },
+  "time_settings": {
+    "off_hours_start": "18:00",
+    "off_hours_end": "08:00",
+    "weekend_multiplier": 1.5,
+    "late_night_bonus": 10,
+    "off_hours_bonus": 15,
+    "weekend_bonus": 10
+  },
+  "sensitive_tables": [
+    "Salaries",
+    "Employees",
+    "HR_Records",
+    "CustomerData",
+    "AuditLog",
+    "Payroll",
+    "SSN",
+    "Credit"
+  ],
+  "high_risk_keywords": [
+    "unauthorized",
+    "emergency",
+    "bypass",
+    "override",
+    "manual",
+    "temp",
+    "temporary",
+    "hotfix",
+    "urgent",
+    "critical"
+  ],
+  "low_risk_keywords": [
+    "scheduled",
+    "approved",
+    "maintenance",
+    "routine",
+    "standard",
+    "automated",
+    "planned",
+    "regular"
+  ],
+  "high_risk_programs": [
+    "sqlcmd",
+    "psql",
+    "mysql",
+    "mongosh",
+    "redis-cli",
+    "powershell",
+    "cmd",
+    "bash",
+    "python",
+    "perl",
+    "script"
+  ],
+  "medium_risk_programs": [
+    "ssms",
+    "management studio",
+    "workbench",
+    "navigator",
+    "toad",
+    "dbeaver",
+    "navicat"
+  ],
+  "admin_patterns": [
+    "admin",
+    "root",
+    "sa",
+    "dba",
+    "system",
+    "service"
+  ],
+  "risk_thresholds": {
+    "high": 70,
+    "medium": 40,
+    "low": 0
+  },
+  "anomaly_settings": {
+    "volume_threshold_multiplier": 3.0,
+    "frequency_threshold": 10,
+    "off_hours_sensitivity": 1.0
+  }
+}
