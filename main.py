@@ -356,6 +356,10 @@ def main():
             data_source = "Test Dataset (5000 rows)"
             if df is not None:
                 st.info(f"📊 Using test dataset: {len(df)} rows of sample SQL audit data")
+                st.write(f"Debug: Test data columns: {list(df.columns)}")
+                st.write(f"Debug: Sample data shape: {df.shape}")
+            else:
+                st.error("Failed to load test data")
     
     if df is not None and not df.empty:
         
@@ -410,6 +414,7 @@ def main():
                 
                 # Calculate risk scores and detect anomalies only once per data source
                 if 'risk_calculations' not in st.session_state or st.session_state.get('last_upload_key') != cache_key:
+                    st.write(f"Debug: Starting risk calculations for {cache_key}")
                     with st.spinner("Calculating risk scores and detecting anomalies..."):
                         all_risk_scores = []
                         all_anomaly_data = []
