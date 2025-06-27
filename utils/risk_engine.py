@@ -38,7 +38,9 @@ class RiskEngine:
     
     def explain_sql(self, statement):
         """Convert SQL statement to plain English explanation"""
-        s = statement.upper().strip()
+        if pd.isna(statement) or not statement:
+            return "executed an unknown operation"
+        s = str(statement).upper().strip()
         
         # Handle common SQL patterns
         if "SELECT *" in s:
@@ -74,7 +76,9 @@ class RiskEngine:
     
     def get_sql_operation_risk(self, statement):
         """Calculate risk score based on SQL operation type"""
-        s = statement.upper().strip()
+        if pd.isna(statement) or not statement:
+            return 10  # Default moderate risk for unknown operations
+        s = str(statement).upper().strip()
         
         # Check for specific high-risk patterns
         if "SELECT *" in s:
