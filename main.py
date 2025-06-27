@@ -175,8 +175,8 @@ def generate_risk_narrative(row, risk_score, anomalies):
     
     # Risk indicators
     risk_color = get_risk_color(risk_score)
-    sensitive = "⚠️ **Sensitive table access**" if any(s.lower() in row['Accessed_Obj'].lower() for s in SENSITIVE_TABLES) else ""
-    unauthorized = "🚨 **Unauthorized change**" if "unauthorized" in context.lower() else ""
+    sensitive = "⚠️ **Sensitive table access**" if pd.notna(row['Accessed_Obj']) and any(s.lower() in str(row['Accessed_Obj']).lower() for s in SENSITIVE_TABLES) else ""
+    unauthorized = "🚨 **Unauthorized change**" if pd.notna(context) and "unauthorized" in str(context).lower() else ""
     outlier = "🔍 **Outlier activity**" if anomalies.get('is_outlier', False) else ""
     off_hours = "⏰ **Off-hours access**" if anomalies.get('off_hours', False) else ""
     

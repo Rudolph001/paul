@@ -81,7 +81,7 @@ class Dashboard:
             st.metric("Average Risk", f"{avg_risk:.1f}")
         with col4:
             sensitive_access = sum(1 for _, row in db_df.iterrows() 
-                                 if any(table.lower() in row['Accessed_Obj'].lower() 
+                                 if pd.notna(row['Accessed_Obj']) and any(table.lower() in str(row['Accessed_Obj']).lower() 
                                        for table in ['salaries', 'employees', 'hr_records', 'customerdata', 'auditlog']))
             st.metric("Sensitive Access", sensitive_access)
         
