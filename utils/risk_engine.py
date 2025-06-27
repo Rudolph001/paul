@@ -140,10 +140,10 @@ class RiskEngine:
     
     def get_sensitive_object_risk(self, accessed_obj, sensitive_tables):
         """Calculate risk score for accessing sensitive objects"""
-        if pd.isna(accessed_obj):
+        if pd.isna(accessed_obj) or not accessed_obj:
             return 0
         
-        obj_lower = accessed_obj.lower()
+        obj_lower = str(accessed_obj).lower()
         for sensitive_table in sensitive_tables:
             if sensitive_table.lower() in obj_lower:
                 return 20

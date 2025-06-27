@@ -198,7 +198,7 @@ def generate_comprehensive_summary(df, risk_scores, anomaly_data):
     
     # Sensitive table access
     sensitive_count = df['Accessed_Obj'].apply(
-        lambda x: any(s.lower() in x.lower() for s in SENSITIVE_TABLES)
+        lambda x: any(s.lower() in str(x).lower() for s in SENSITIVE_TABLES) if pd.notna(x) else False
     ).sum()
     
     # Unauthorized activities
