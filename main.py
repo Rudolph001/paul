@@ -111,6 +111,7 @@ def main():
             "📈 Risk Analysis",
             "👤 User Investigation",
             "👥 My Peeps",
+            "💾 My Databases",
             "🗄️ Database Analysis",
             "📋 Event Details",
             "📤 Reports & Export",
@@ -477,12 +478,197 @@ def main():
                     # Add spacing between users
                     st.markdown("---")
         
+        elif st.session_state.current_page == "My Databases":
+            st.header("💾 My Databases")
+            st.markdown("*Database overview with risk assessment and security narratives*")
+            
+            # Get unique databases and their risk profiles
+            unique_databases = final_df['DB_Name'].unique()
+            database_profiles = {}
+            
+            for database in unique_databases:
+                db_data = final_df[final_df['DB_Name'] == database]
+                
+                # Get risk scores and anomalies for this database's data
+                db_risk_scores = []
+                db_anomalies = []
+                
+                for idx in range(len(final_df)):
+                    if final_df.iloc[idx]['DB_Name'] == database:
+                        if idx < len(final_risk_scores):
+                            db_risk_scores.append(final_risk_scores[idx])
+                        if idx < len(final_anomaly_data):
+                            db_anomalies.append(final_anomaly_data[idx])
+                
+                if db_risk_scores:
+                    avg_risk = sum(db_risk_scores) / len(db_risk_scores)
+                    max_risk = max(db_risk_scores)
+                    total_activities = len(db_data)
+                    unique_users = db_data['OS_User'].nunique()
+                    
+                    # Get most recent activity
+                    recent_activity = db_data.iloc[-1]
+                    
+                    # Determine database category based on name and accessed objects
+                    db_category = "Unknown"
+                    if any(keyword in database.lower() for keyword in ['finance', 'trading', 'payment', 'credit']):
+                        db_category = "Financial"
+                    elif any(keyword in database.lower() for keyword in ['hr', 'employee', 'payroll', 'salary']):
+                        db_category = "Human Resources"
+                    elif any(keyword in database.lower() for keyword in ['customer', 'client', 'crm']):
+                        db_category = "Customer Data"
+                    elif any(keyword in database.lower() for keyword in ['audit', 'log', 'security']):
+                        db_category = "Security & Audit"
+                    elif any(keyword in database.lower() for keyword in ['product', 'inventory', 'catalog']):
+                        db_category = "Operations"
+                    else:
+                        db_category = "General"
+                    
+                    # Check for sensitive data access
+                    sensitive_access = sum(1 for _, row in db_data.iterrows() 
+                                         if pd.notna(row['Accessed_Obj']) and any(table.lower() in str(row['Accessed_Obj']).lower() 
+                                               for table in ['salaries', 'employees', 'hr_records', 'customerdata', 'auditlog', 'credit', 'payment']))
+                    
+                    database_profiles[database] = {
+                        'category': db_category,
+                        'avg_risk': avg_risk,
+                        'max_risk': max_risk,
+                        'total_activities': total_activities,
+                        'unique_users': unique_users,
+                        'recent_activity': recent_activity,
+                        'risk_scores': db_risk_scores,
+                        'anomalies': db_anomalies,
+                        'db_data': db_data,
+                        'sensitive_access': sensitive_access
+                    }
+            
+            # Display database cards with narratives
+            for database, profile in database_profiles.items():
+                # Create a container for each database
+                with st.container():
+                    # Database card and narrative in columns
+                    col1, col2 = st.columns([1, 2])
+                    
+                    with col1:
+                        # Database card using Streamlit components
+                        risk_color = get_risk_color(profile['max_risk'])
+                        risk_level = "High Risk" if profile['max_risk'] >= 70 else "Medium Risk" if profile['max_risk'] >= 40 else "Low Risk"
+                        
+                        # Create database card with container
+                        with st.container():
+                            st.markdown(f"### 💾 {database}")
+                            st.caption(f"{profile['category']} Database")
+                            
+                            # Category and activity summary
+                            st.markdown(f"**{profile['category']}**")
+                            st.text(f"{profile['total_activities']} activities by {profile['unique_users']} users")
+                            
+                            # Time and risk level
+                            col_time, col_risk = st.columns(2)
+                            with col_time:
+                                time_str = str(profile['recent_activity']['_time'])[:16] if hasattr(profile['recent_activity']['_time'], 'strftime') else str(profile['recent_activity']['_time'])[:16]
+                                st.caption(f"Last: {time_str}")
+                            with col_risk:
+                                if risk_level == "High Risk":
+                                    st.error(risk_level)
+                                elif risk_level == "Medium Risk":
+                                    st.warning(risk_level) 
+                                else:
+                                    st.success(risk_level)
+                            
+                            # Add drill-down link to Database Analysis
+                            if st.button(f"🔍 Analyze", key=f"analyze_{database}", use_container_width=True):
+                                st.session_state.current_page = "Database Analysis"
+                                st.session_state.selected_database_for_analysis = database
+                                st.rerun()
+                    
+                    with col2:
+                        # Narrative section using Streamlit components
+                        st.markdown("### Database Security Narrative")
+                        
+                        # Generate narrative for this database's activities
+                        high_risk_activities = [i for i, score in enumerate(profile['risk_scores']) if score >= 70]
+                        medium_risk_activities = [i for i, score in enumerate(profile['risk_scores']) if 40 <= score < 70]
+                        
+                        # Security overview
+                        if profile['sensitive_access'] > 0:
+                            st.error(f"⚠️ **{database}** contains {profile['sensitive_access']} sensitive data access events requiring attention.")
+                        
+                        # Risk alerts
+                        if high_risk_activities:
+                            st.error(f"🚨 {len(high_risk_activities)} high-risk activities detected.")
+                        
+                        # Medium risk info
+                        if medium_risk_activities:
+                            st.warning(f"📊 {len(medium_risk_activities)} medium-risk activities for monitoring.")
+                        
+                        # Most concerning activity
+                        if profile['risk_scores']:
+                            max_risk_idx = profile['risk_scores'].index(profile['max_risk'])
+                            risky_activity = profile['db_data'].iloc[max_risk_idx]
+                            
+                            st.markdown(f"**🔍 Highest risk activity:**")
+                            activity_text = str(risky_activity['Statement'])
+                            if len(activity_text) > 100:
+                                activity_text = activity_text[:100] + "..."
+                            st.code(activity_text)
+                            
+                            if profile['max_risk'] >= 70:
+                                st.error("This database activity represents a significant security concern.")
+                            elif profile['max_risk'] >= 40:
+                                st.warning("This database shows unusual activity patterns requiring monitoring.")
+                        
+                        # Access patterns
+                        if profile['unique_users'] > 10:
+                            st.info(f"📈 **High access database** with {profile['unique_users']} different users accessing it.")
+                        elif profile['unique_users'] == 1:
+                            st.info(f"🔒 **Single-user database** accessed only by one user.")
+                        
+                        # Category context
+                        category_context = {
+                            "Financial": "handles sensitive financial data and transactions",
+                            "Human Resources": "contains employee and payroll information", 
+                            "Customer Data": "stores customer account and personal information",
+                            "Security & Audit": "maintains audit logs and security records",
+                            "Operations": "supports business operations and workflows",
+                            "General": "serves general business purposes"
+                        }
+                        
+                        if profile['category'] in category_context:
+                            st.markdown(f"💾 **Database purpose:** This database typically {category_context[profile['category']]}.")
+                        
+                        # Usage statistics
+                        st.divider()
+                        col_avg, col_max, col_users, col_activities = st.columns(4)
+                        with col_avg:
+                            st.metric("Avg Risk", f"{profile['avg_risk']:.1f}")
+                        with col_max:
+                            st.metric("Max Risk", f"{profile['max_risk']:.1f}")
+                        with col_users:
+                            st.metric("Users", profile['unique_users'])
+                        with col_activities:
+                            st.metric("Activities", profile['total_activities'])
+                    
+                    # Add spacing between databases
+                    st.markdown("---")
+        
         elif st.session_state.current_page == "Database Analysis":
             st.header("🗄️ Database Security Analysis")
             
-            # Database selection
+            # Database selection - check if database was selected from My Databases drill-down
             unique_dbs = final_df['DB_Name'].unique()
-            selected_story_db = st.selectbox("Select Database for Analysis", unique_dbs, key="story_db")
+            
+            # Set default selection from My Databases drill-down
+            default_index = 0
+            if 'selected_database_for_analysis' in st.session_state:
+                db_from_databases = st.session_state.selected_database_for_analysis
+                if db_from_databases in unique_dbs:
+                    default_index = list(unique_dbs).index(db_from_databases)
+                # Clear the session state after using it
+                del st.session_state.selected_database_for_analysis
+            
+            selected_story_db = st.selectbox("Select Database for Analysis", unique_dbs, 
+                                           index=default_index, key="story_db")
             
             if selected_story_db:
                 components['dashboard'].create_database_storyline(
