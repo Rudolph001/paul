@@ -123,12 +123,12 @@ def load_csv(upload):
         
         # Parse datetime
         if '_time' in df.columns:
-            df['_time'] = pd.to_datetime(df['_time'], errors='coerce')
+            df['_time'] = pd.to_datetime(df['_time'], errors='coerce', format='mixed')
             
             invalid_dates = df['_time'].isna().sum()
             if invalid_dates > 0:
                 st.warning(f"Found {invalid_dates} rows with invalid datetime formats. Using current time as fallback.")
-                df['_time'].fillna(pd.Timestamp.now(), inplace=True)
+                df['_time'] = df['_time'].fillna(pd.Timestamp.now())
         
         return df
         
@@ -325,8 +325,9 @@ def main():
                 start_date = st.date_input("Start Date", min_date, min_value=min_date, max_value=max_date)
                 end_date = st.date_input("End Date", max_date, min_value=min_date, max_value=max_date)
                 
-                # User filter
-                users = ["All"] + sorted(df['OS_User'].unique().tolist())
+                # User filter - handle NaN values
+                unique_users = df['OS_User'].dropna().unique().tolist()
+                users = ["All"] + sorted([str(user) for user in unique_users])
                 selected_user = st.selectbox("Filter by User", users)
                 
                 # Risk threshold filter
