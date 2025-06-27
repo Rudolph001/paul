@@ -36,6 +36,17 @@ components = get_components()
 SENSITIVE_TABLES = ['Salaries', 'Employees', 'HR_Records', 'CustomerData', 'AuditLog', 'Payroll', 'SSN', 'Credit']
 REQUIRED_COLUMNS = ['_time', 'OS_User', 'Exec_User', 'DB_Type', 'DB_Name', 'Program', 'Module', 'Src_Host', 'Src_IP', 'Accessed_Obj', 'Accessed_Obj_Owner', 'Statement', 'MS_Context']
 
+# Load test dataset
+@st.cache_data
+def load_test_data():
+    """Load the generated test dataset"""
+    try:
+        df = pd.read_csv('test_sql_audit_5000_rows.csv', encoding='utf-8')
+        return df
+    except Exception as e:
+        st.error(f"Error loading test dataset: {str(e)}")
+        return None
+
 # Load and validate CSV
 @st.cache_data
 def load_csv(upload):
@@ -293,6 +304,15 @@ def main():
         
         uploaded_file = st.file_uploader("Upload Trellix SQL CSV", type="csv", help="Upload CSV with required columns for SQL log analysis")
         
+        # Auto-load test dataset if no file is uploaded
+        if not uploaded_file:
+            if st.button("🧪 Load Test Dataset (5000 rows)", help="Load the generated test dataset to explore the application"):
+                st.session_state.use_test_data = True
+                st.rerun()
+        
+        # Check if we should use test data
+        use_test_data = st.session_state.get('use_test_data', False)
+        
         if uploaded_file:
             # Clear cache when new file is uploaded
             current_upload_key = str(uploaded_file.file_id if hasattr(uploaded_file, 'file_id') else uploaded_file.name)
@@ -303,37 +323,64 @@ def main():
                     del st.session_state.last_upload_key
             
             st.success("✅ File uploaded successfully")
+            use_test_data = False  # Override test data if file is uploaded
     
     # Main content area
     if st.session_state.current_page == "Upload & Overview":
         st.title("🔍 Insider Threat SQL Activity Explainer")
         st.markdown("**Advanced Risk Analysis & Compliance Reporting**")
     
+    # Determine data source
+    df = None
+    data_source = "Unknown"
+    
     if uploaded_file:
-        # Load data
-        with st.spinner("Loading and analyzing data..."):
+        # Load uploaded data
+        with st.spinner("Loading and analyzing uploaded data..."):
             df = load_csv(uploaded_file)
+            data_source = uploaded_file.name
+    elif use_test_data:
+        # Load test data
+        with st.spinner("Loading test dataset..."):
+            df = load_test_data()
+            data_source = "Test Dataset (5000 rows)"
+            if df is not None:
+                st.info(f"📊 Using test dataset: {len(df)} rows of sample SQL audit data")
+    
+    if df is not None and not df.empty:
         
-        if df is not None and not df.empty:
-            # Sidebar filters
-            with st.sidebar:
-                st.header("🔧 Filters")
-                
-                # Date range
-                min_date = df['_time'].min().date()
-                max_date = df['_time'].max().date()
-                start_date = st.date_input("Start Date", min_date, min_value=min_date, max_value=max_date)
-                end_date = st.date_input("End Date", max_date, min_value=min_date, max_value=max_date)
-                
-                # User filter - handle NaN values
-                unique_users = df['OS_User'].dropna().unique().tolist()
-                users = ["All"] + sorted([str(user) for user in unique_users])
-                selected_user = st.selectbox("Filter by User", users)
-                
-                # Risk threshold filter
-                risk_threshold = st.slider("Minimum Risk Score", 0, 100, 0, help="Show only events above this risk score")
-                
-                st.header("📊 Export & Reports")
+        # Display data source info
+        if data_source != "Unknown":
+            st.sidebar.success(f"📈 Data Source: {data_source}")
+            
+        # Sidebar filters
+        with st.sidebar:
+            st.header("🔧 Filters")
+            
+            # Date range
+            min_date = df['_time'].min().date()
+            max_date = df['_time'].max().date()
+            start_date = st.date_input("Start Date", min_date, min_value=min_date, max_value=max_date)
+            end_date = st.date_input("End Date", max_date, min_value=min_date, max_value=max_date)
+            
+            # User filter - handle NaN values
+            unique_users = df['OS_User'].dropna().unique().tolist()
+            users = ["All"] + sorted([str(user) for user in unique_users])
+            selected_user = st.selectbox("Filter by User", users)
+            
+            # Risk threshold filter
+            risk_threshold = st.slider("Minimum Risk Score", 0, 100, 0, help="Show only events above this risk score")
+            
+            st.header("📊 Export & Reports")
+            
+            # Reset button for test data
+            if use_test_data:
+                if st.button("🔄 Clear Test Data"):
+                    if 'use_test_data' in st.session_state:
+                        del st.session_state.use_test_data
+                    if 'risk_calculations' in st.session_state:
+                        del st.session_state.risk_calculations
+                    st.rerun()
                 
             # Apply filters
             filtered_df = df[
@@ -345,8 +392,14 @@ def main():
                 filtered_df = filtered_df[filtered_df['OS_User'] == selected_user]
             
             if not filtered_df.empty:
-                # Calculate risk scores and detect anomalies only once per upload
-                if 'risk_calculations' not in st.session_state or st.session_state.get('last_upload_key') != str(uploaded_file.file_id if hasattr(uploaded_file, 'file_id') else uploaded_file.name):
+                # Generate cache key for both uploaded files and test data
+                if uploaded_file:
+                    cache_key = str(uploaded_file.file_id if hasattr(uploaded_file, 'file_id') else uploaded_file.name)
+                else:
+                    cache_key = "test_data_5000_rows"
+                
+                # Calculate risk scores and detect anomalies only once per data source
+                if 'risk_calculations' not in st.session_state or st.session_state.get('last_upload_key') != cache_key:
                     with st.spinner("Calculating risk scores and detecting anomalies..."):
                         all_risk_scores = []
                         all_anomaly_data = []
@@ -373,7 +426,7 @@ def main():
                             'risk_scores': all_risk_scores,
                             'anomaly_data': all_anomaly_data
                         }
-                        st.session_state.last_upload_key = str(uploaded_file.file_id if hasattr(uploaded_file, 'file_id') else uploaded_file.name)
+                        st.session_state.last_upload_key = cache_key
                 
                 # Get cached calculations
                 all_risk_scores = st.session_state.risk_calculations['risk_scores']
@@ -925,9 +978,14 @@ def main():
     else:
         # Instructions based on current page
         if st.session_state.current_page == "Upload & Overview":
-            st.info("📁 Please upload a CSV file with Trellix-style SQL logs to begin analysis.")
+            st.info("📁 Please upload a CSV file with Trellix-style SQL logs to begin analysis, or use the test dataset.")
             
-            with st.expander("📋 Required CSV Format", expanded=True):
+            # Prominent test data button
+            if st.button("🧪 Load Test Dataset", type="primary", help="Load 5000 rows of sample SQL audit data"):
+                st.session_state.use_test_data = True
+                st.rerun()
+            
+            with st.expander("📋 Required CSV Format", expanded=False):
                 st.markdown("""
                 **Required Columns:**
                 - `_time`: Timestamp (YYYY-MM-DD HH:MM:SS)
