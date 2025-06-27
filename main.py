@@ -294,6 +294,14 @@ def main():
         uploaded_file = st.file_uploader("Upload Trellix SQL CSV", type="csv", help="Upload CSV with required columns for SQL log analysis")
         
         if uploaded_file:
+            # Clear cache when new file is uploaded
+            current_upload_key = str(uploaded_file.file_id if hasattr(uploaded_file, 'file_id') else uploaded_file.name)
+            if st.session_state.get('last_upload_key') != current_upload_key:
+                if 'risk_calculations' in st.session_state:
+                    del st.session_state.risk_calculations
+                if 'last_upload_key' in st.session_state:
+                    del st.session_state.last_upload_key
+            
             st.success("✅ File uploaded successfully")
     
     # Main content area
@@ -336,23 +344,50 @@ def main():
                 filtered_df = filtered_df[filtered_df['OS_User'] == selected_user]
             
             if not filtered_df.empty:
-                # Calculate risk scores and detect anomalies
-                with st.spinner("Calculating risk scores and detecting anomalies..."):
-                    risk_scores = []
-                    anomaly_data = []
-                    
-                    for _, row in filtered_df.iterrows():
-                        risk_score = components['risk_engine'].calculate_risk_score(row, SENSITIVE_TABLES)
-                        anomalies = components['anomaly_detector'].detect_anomalies(row, df)
+                # Calculate risk scores and detect anomalies only once per upload
+                if 'risk_calculations' not in st.session_state or st.session_state.get('last_upload_key') != str(uploaded_file.file_id if hasattr(uploaded_file, 'file_id') else uploaded_file.name):
+                    with st.spinner("Calculating risk scores and detecting anomalies..."):
+                        all_risk_scores = []
+                        all_anomaly_data = []
                         
-                        risk_scores.append(risk_score)
-                        anomaly_data.append(anomalies)
+                        # Add progress bar for large datasets
+                        progress_bar = st.progress(0)
+                        total_rows = len(df)
+                        
+                        for idx, (_, row) in enumerate(df.iterrows()):
+                            risk_score = components['risk_engine'].calculate_risk_score(row, SENSITIVE_TABLES)
+                            anomalies = components['anomaly_detector'].detect_anomalies(row, df)
+                            
+                            all_risk_scores.append(risk_score)
+                            all_anomaly_data.append(anomalies)
+                            
+                            # Update progress every 10 rows or for small datasets
+                            if idx % max(1, total_rows // 100) == 0 or idx == total_rows - 1:
+                                progress_bar.progress((idx + 1) / total_rows)
+                        
+                        progress_bar.empty()  # Remove progress bar when done
+                        
+                        # Cache the calculations
+                        st.session_state.risk_calculations = {
+                            'risk_scores': all_risk_scores,
+                            'anomaly_data': all_anomaly_data
+                        }
+                        st.session_state.last_upload_key = str(uploaded_file.file_id if hasattr(uploaded_file, 'file_id') else uploaded_file.name)
+                
+                # Get cached calculations
+                all_risk_scores = st.session_state.risk_calculations['risk_scores']
+                all_anomaly_data = st.session_state.risk_calculations['anomaly_data']
+                
+                # Filter the pre-calculated results based on current filters
+                filtered_indices = filtered_df.index.tolist()
+                filtered_risk_scores = [all_risk_scores[i] for i in filtered_indices if i < len(all_risk_scores)]
+                filtered_anomaly_data = [all_anomaly_data[i] for i in filtered_indices if i < len(all_anomaly_data)]
                 
                 # Apply risk threshold filter
-                risk_mask = [score >= risk_threshold for score in risk_scores]
+                risk_mask = [score >= risk_threshold for score in filtered_risk_scores]
                 final_df = filtered_df[risk_mask].copy()
-                final_risk_scores = [score for score, mask in zip(risk_scores, risk_mask) if mask]
-                final_anomaly_data = [anomaly for anomaly, mask in zip(anomaly_data, risk_mask) if mask]
+                final_risk_scores = [score for score, mask in zip(filtered_risk_scores, risk_mask) if mask]
+                final_anomaly_data = [anomaly for anomaly, mask in zip(filtered_anomaly_data, risk_mask) if mask]
                 
                 if final_df.empty:
                     st.warning(f"No events found above risk threshold of {risk_threshold}")
