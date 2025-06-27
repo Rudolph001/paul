@@ -162,6 +162,10 @@ class Dashboard:
         """Create executive-level dashboard with key insights"""
         st.header("📊 Executive Security Dashboard")
         
+        if df.empty:
+            st.warning("No data available for dashboard")
+            return
+    
         # Key metrics row
         col1, col2, col3, col4, col5 = st.columns(5)
         
@@ -185,7 +189,7 @@ class Dashboard:
         with col5:
             off_hours_count = sum(1 for anomaly in anomaly_data if anomaly.get('off_hours', False))
             st.metric("Off-Hours Access", off_hours_count)
-        
+    
         # Risk distribution chart
         col1, col2 = st.columns(2)
         
