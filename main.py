@@ -315,8 +315,17 @@ def main():
             for user in unique_users:
                 user_data = final_df[final_df['OS_User'] == user]
                 user_indices = user_data.index.tolist()
-                user_risk_scores = [final_risk_scores[i] for i in range(len(final_risk_scores)) if i < len(final_df) and final_df.iloc[i]['OS_User'] == user]
-                user_anomalies = [final_anomaly_data[i] for i in range(len(final_anomaly_data)) if i < len(final_df) and final_df.iloc[i]['OS_User'] == user]
+                
+                # Get risk scores and anomalies for this user's data
+                user_risk_scores = []
+                user_anomalies = []
+                
+                for idx in range(len(final_df)):
+                    if final_df.iloc[idx]['OS_User'] == user:
+                        if idx < len(final_risk_scores):
+                            user_risk_scores.append(final_risk_scores[idx])
+                        if idx < len(final_anomaly_data):
+                            user_anomalies.append(final_anomaly_data[idx])
                 
                 if user_risk_scores:
                     avg_risk = sum(user_risk_scores) / len(user_risk_scores)
@@ -358,100 +367,75 @@ def main():
                     col1, col2 = st.columns([1, 2])
                     
                     with col1:
-                        # User card
+                        # User card using Streamlit components
                         risk_color = get_risk_color(profile['avg_risk'])
                         risk_level = "High Risk" if profile['avg_risk'] >= 70 else "Medium Risk" if profile['avg_risk'] >= 40 else "Low Risk"
                         
-                        st.markdown(f"""
-                        <div style="
-                            border: 1px solid #e0e0e0;
-                            border-radius: 10px;
-                            padding: 20px;
-                            background-color: white;
-                            box-shadow: 0 2px 4px rgba(0,0,0,0.1);
-                            margin-bottom: 10px;
-                        ">
-                            <div style="display: flex; align-items: center; margin-bottom: 15px;">
-                                <div style="
-                                    width: 40px;
-                                    height: 40px;
-                                    border-radius: 50%;
-                                    background-color: #6c7b7f;
-                                    display: flex;
-                                    align-items: center;
-                                    justify-content: center;
-                                    color: white;
-                                    font-weight: bold;
-                                    margin-right: 15px;
-                                ">
-                                    {user[0].upper()}
-                                </div>
-                                <div>
-                                    <h4 style="margin: 0; color: #333;">{user}</h4>
-                                    <p style="margin: 0; color: #666; font-size: 14px;">{profile['department']} Specialist</p>
-                                </div>
-                            </div>
+                        # Create user card with container
+                        with st.container():
+                            st.markdown(f"### 👤 {user}")
+                            st.caption(f"{profile['department']} Specialist")
                             
-                            <div style="background-color: #f8f9fa; padding: 10px; border-radius: 5px; margin-bottom: 10px;">
-                                <h5 style="margin: 0; color: #333;">{profile['department']}</h5>
-                                <p style="margin: 5px 0 0 0; color: #555; font-size: 14px;">
-                                    {profile['recent_activity']['Statement'][:50]}{'...' if len(str(profile['recent_activity']['Statement'])) > 50 else ''}
-                                </p>
-                            </div>
+                            # Department and recent activity
+                            st.markdown(f"**{profile['department']}**")
+                            recent_stmt = str(profile['recent_activity']['Statement'])
+                            if len(recent_stmt) > 50:
+                                recent_stmt = recent_stmt[:50] + "..."
+                            st.text(recent_stmt)
                             
-                            <div style="display: flex; justify-content: space-between; align-items: center;">
-                                <span style="color: #666; font-size: 12px;">
-                                    {profile['recent_activity']['_time'].strftime('%Y-%m-%d %H:%M') if hasattr(profile['recent_activity']['_time'], 'strftime') else str(profile['recent_activity']['_time'])[:16]}
-                                </span>
-                                <span style="
-                                    background-color: {risk_color};
-                                    color: white;
-                                    padding: 4px 8px;
-                                    border-radius: 12px;
-                                    font-size: 12px;
-                                    font-weight: bold;
-                                ">
-                                    {risk_level}
-                                </span>
-                            </div>
-                        </div>
-                        """, unsafe_allow_html=True)
+                            # Time and risk level
+                            col_time, col_risk = st.columns(2)
+                            with col_time:
+                                time_str = str(profile['recent_activity']['_time'])[:16] if hasattr(profile['recent_activity']['_time'], 'strftime') else str(profile['recent_activity']['_time'])[:16]
+                                st.caption(time_str)
+                            with col_risk:
+                                if risk_level == "High Risk":
+                                    st.error(risk_level)
+                                elif risk_level == "Medium Risk":
+                                    st.warning(risk_level) 
+                                else:
+                                    st.success(risk_level)
                     
                     with col2:
-                        # Narrative card
+                        # Narrative section using Streamlit components
+                        st.markdown("### Activity Narrative")
+                        
                         # Generate narrative for this user's activities
                         high_risk_activities = [i for i, score in enumerate(profile['risk_scores']) if score >= 70]
                         medium_risk_activities = [i for i, score in enumerate(profile['risk_scores']) if 40 <= score < 70]
                         
-                        # Create a comprehensive narrative
-                        narrative_parts = []
-                        
+                        # High risk alert
                         if high_risk_activities:
-                            narrative_parts.append(f"⚠️ **{user}** has {len(high_risk_activities)} high-risk activities requiring immediate attention.")
+                            st.error(f"⚠️ **{user}** has {len(high_risk_activities)} high-risk activities requiring immediate attention.")
                         
+                        # Medium risk info
                         if medium_risk_activities:
-                            narrative_parts.append(f"📊 {len(medium_risk_activities)} medium-risk activities detected for monitoring.")
+                            st.warning(f"📊 {len(medium_risk_activities)} medium-risk activities detected for monitoring.")
                         
-                        # Add specific activity details
+                        # Most concerning activity
                         if profile['risk_scores']:
                             max_risk_idx = profile['risk_scores'].index(profile['max_risk'])
                             risky_activity = profile['user_data'].iloc[max_risk_idx]
                             
-                            narrative_parts.append(f"🔍 **Most concerning activity:** {risky_activity['Statement'][:100]}{'...' if len(str(risky_activity['Statement'])) > 100 else ''}")
+                            st.markdown(f"**🔍 Most concerning activity:**")
+                            activity_text = str(risky_activity['Statement'])
+                            if len(activity_text) > 100:
+                                activity_text = activity_text[:100] + "..."
+                            st.code(activity_text)
                             
                             if profile['max_risk'] >= 70:
-                                narrative_parts.append("This activity represents a significant security concern and warrants immediate investigation.")
+                                st.error("This activity represents a significant security concern and warrants immediate investigation.")
                             elif profile['max_risk'] >= 40:
-                                narrative_parts.append("This activity shows unusual patterns that should be monitored closely.")
+                                st.warning("This activity shows unusual patterns that should be monitored closely.")
                         
-                        # Add behavioral insights
+                        # Behavioral insights
                         total_activities = profile['total_activities']
                         if total_activities > 50:
-                            narrative_parts.append(f"📈 **High activity user** with {total_activities} database operations recorded.")
+                            st.info(f"📈 **High activity user** with {total_activities} database operations recorded.")
                         elif total_activities < 5:
-                            narrative_parts.append(f"📉 **Low activity user** with only {total_activities} database operations.")
+                            st.info(f"📉 **Low activity user** with only {total_activities} database operations.")
                         
-                        # Add department-specific context
+                        # Department context
                         dept_context = {
                             "HR": "accesses employee and payroll data",
                             "Trading": "works with financial positions and trading data", 
@@ -461,35 +445,17 @@ def main():
                         }
                         
                         if profile['department'] in dept_context:
-                            narrative_parts.append(f"👤 **Role context:** This user typically {dept_context[profile['department']]}.")
+                            st.markdown(f"👤 **Role context:** This user typically {dept_context[profile['department']]}.")
                         
-                        # Combine narrative
-                        full_narrative = " ".join(narrative_parts)
-                        
-                        st.markdown(f"""
-                        <div style="
-                            border: 1px solid #e0e0e0;
-                            border-radius: 10px;
-                            padding: 20px;
-                            background-color: white;
-                            box-shadow: 0 2px 4px rgba(0,0,0,0.1);
-                            margin-bottom: 10px;
-                            min-height: 200px;
-                        ">
-                            <h5 style="color: #333; margin-bottom: 15px;">Activity Narrative</h5>
-                            <p style="color: #555; line-height: 1.6; margin: 0;">
-                                {full_narrative}
-                            </p>
-                            
-                            <div style="margin-top: 15px; padding-top: 15px; border-top: 1px solid #eee;">
-                                <div style="display: flex; justify-content: space-between; font-size: 12px; color: #666;">
-                                    <span><strong>Avg Risk:</strong> {profile['avg_risk']:.1f}</span>
-                                    <span><strong>Max Risk:</strong> {profile['max_risk']:.1f}</span>
-                                    <span><strong>Activities:</strong> {total_activities}</span>
-                                </div>
-                            </div>
-                        </div>
-                        """, unsafe_allow_html=True)
+                        # Statistics
+                        st.divider()
+                        col_avg, col_max, col_activities = st.columns(3)
+                        with col_avg:
+                            st.metric("Avg Risk", f"{profile['avg_risk']:.1f}")
+                        with col_max:
+                            st.metric("Max Risk", f"{profile['max_risk']:.1f}")
+                        with col_activities:
+                            st.metric("Activities", total_activities)
                     
                     # Add spacing between users
                     st.markdown("---")
