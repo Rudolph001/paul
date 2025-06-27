@@ -368,8 +368,8 @@ def main():
                     
                     with col1:
                         # User card using Streamlit components
-                        risk_color = get_risk_color(profile['avg_risk'])
-                        risk_level = "High Risk" if profile['avg_risk'] >= 70 else "Medium Risk" if profile['avg_risk'] >= 40 else "Low Risk"
+                        risk_color = get_risk_color(profile['max_risk'])  # Use max_risk instead of avg_risk for display
+                        risk_level = "High Risk" if profile['max_risk'] >= 70 else "Medium Risk" if profile['max_risk'] >= 40 else "Low Risk"
                         
                         # Create user card with container
                         with st.container():
