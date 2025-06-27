@@ -436,13 +436,15 @@ class Dashboard:
             position: relative;
             margin: 40px 0;
             padding: 20px 0;
+            min-height: 400px;
+            overflow-x: auto;
         }}
         
         .timeline-line {{
             position: absolute;
-            top: 60px;
-            left: 0;
-            right: 0;
+            top: 80px;
+            left: 5%;
+            right: 5%;
             height: 8px;
             background: linear-gradient(90deg, #f39c12 0%, #e74c3c 25%, #3498db 50%, #9b59b6 75%, #f39c12 100%);
             border-radius: 4px;
@@ -454,7 +456,9 @@ class Dashboard:
             justify-content: space-between;
             position: relative;
             z-index: 2;
-            margin-top: 20px;
+            margin-top: 40px;
+            min-width: 100%;
+            padding: 0 5%;
         }}
         
         .timeline-event {{
@@ -463,7 +467,8 @@ class Dashboard:
             align-items: center;
             text-align: center;
             flex: 1;
-            margin: 0 10px;
+            margin: 0 5px;
+            min-width: 140px;
         }}
         
         .event-icon {{
@@ -501,10 +506,13 @@ class Dashboard:
         }}
         
         .event-description {{
-            font-size: 12px;
+            font-size: 11px;
             color: #7f8c8d;
-            max-width: 150px;
-            line-height: 1.4;
+            max-width: 130px;
+            line-height: 1.3;
+            word-wrap: break-word;
+            overflow-wrap: break-word;
+            margin-bottom: 5px;
         }}
         
         .event-risk {{
@@ -522,10 +530,27 @@ class Dashboard:
         
         .timeline-title {{
             text-align: center;
-            margin-bottom: 30px;
+            margin-bottom: 40px;
             color: #2c3e50;
             font-size: 18px;
             font-weight: bold;
+            padding: 0 20px;
+        }}
+        
+        @media (max-width: 768px) {{
+            .timeline-events {{
+                flex-wrap: wrap;
+                justify-content: center;
+            }}
+            
+            .timeline-event {{
+                margin: 10px;
+                min-width: 120px;
+            }}
+            
+            .timeline-line {{
+                display: none;
+            }}
         }}
         </style>
         
@@ -602,7 +627,7 @@ class Dashboard:
         """
         
         # Display the timeline
-        st.components.v1.html(timeline_html, height=300)
+        st.components.v1.html(timeline_html, height=450)
         
         # Add summary stats below timeline
         col1, col2, col3 = st.columns(3)
