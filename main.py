@@ -132,7 +132,23 @@ def main():
         use_test_data = st.button("🧪 Use Test Dataset", use_container_width=True, 
                                   help="Load a 5000-row sample dataset for testing and demonstration")
         
+        # Persist test data usage in session state
+        if use_test_data:
+            st.session_state.use_test_data = True
+        
         uploaded_file = st.file_uploader("Upload SQL Audit CSV", type=['csv'])
+        
+        # Clear test data when file is uploaded
+        if uploaded_file is not None and 'use_test_data' in st.session_state:
+            del st.session_state.use_test_data
+        
+        # Show clear button if test data is loaded
+        if st.session_state.get('use_test_data', False):
+            if st.button("🗑️ Clear Test Data", use_container_width=True):
+                del st.session_state.use_test_data
+                if 'risk_calculations' in st.session_state:
+                    del st.session_state.risk_calculations
+                st.rerun()
 
     # Main content area
     st.title("🔍 Insider Threat SQL Activity Explainer")
@@ -148,13 +164,12 @@ def main():
         with st.spinner("Loading and analyzing uploaded data..."):
             df = pd.read_csv(uploaded_file, encoding='utf-8', on_bad_lines='skip')
             data_source = uploaded_file.name
-    elif use_test_data:
+    elif st.session_state.get('use_test_data', False):
         # Load test data
-        with st.spinner("Loading test dataset..."):
-            df = load_test_data()
-            data_source = "Test Dataset (5000 rows)"
-            if df is not None:
-                st.info(f"📊 Using test dataset: {len(df)} rows of sample SQL audit data")
+        df = load_test_data()
+        data_source = "Test Dataset (5000 rows)"
+        if df is not None:
+            st.info(f"📊 Using test dataset: {len(df)} rows of sample SQL audit data")
 
     if df is not None and not df.empty:
         # Display data source info
