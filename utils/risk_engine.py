@@ -156,17 +156,27 @@ class RiskEngine:
         obj_lower = str(accessed_obj).lower()
         for sensitive_table in sensitive_tables:
             if sensitive_table.lower() in obj_lower:
-                return 30
+                return 35
+        
+        # Check for high-risk sensitive patterns
+        high_risk_patterns = [
+            'credit_card', 'credit_cards', 'creditcard', 'creditcards',
+            'payment', 'financial', 'salary', 'payroll', 'ssn', 'social_security'
+        ]
+        
+        for pattern in high_risk_patterns:
+            if pattern in obj_lower:
+                return 35
         
         # Check for other sensitive patterns
         sensitive_patterns = [
             'password', 'pwd', 'secret', 'key', 'token', 'hash',
-            'ssn', 'social', 'credit', 'card', 'account', 'financial'
+            'credit', 'card', 'account', 'employee', 'customer'
         ]
         
         for pattern in sensitive_patterns:
             if pattern in obj_lower:
-                return 20
+                return 25
         
         return 0
     
@@ -229,6 +239,20 @@ class RiskEngine:
             user_risk = self.get_user_risk(row['OS_User'], row['Exec_User'])
             program_risk = self.get_program_risk(row['Program'])
             
+            # Special handling for DELETE operations on sensitive objects
+            statement_upper = str(row['Statement']).upper() if pd.notna(row['Statement']) else ''
+            accessed_obj = str(row['Accessed_Obj']).lower() if pd.notna(row['Accessed_Obj']) else ''
+            
+            # Check if DELETE/DROP/TRUNCATE on sensitive tables like credit cards
+            dangerous_ops = ['DELETE', 'DROP', 'TRUNCATE']
+            sensitive_keywords = ['credit', 'card', 'payment', 'financial', 'salary', 'ssn', 'social']
+            
+            is_dangerous_sensitive = (
+                any(op in statement_upper for op in dangerous_ops) and
+                (any(keyword in accessed_obj for keyword in sensitive_keywords) or
+                 any(table.lower() in accessed_obj for table in sensitive_tables))
+            )
+            
             # Calculate weighted total
             total_risk = (
                 sql_risk * 0.3 +           # 30% weight for SQL operation
@@ -249,6 +273,10 @@ class RiskEngine:
             # Super high risk for dangerous combinations
             if sensitive_risk > 0 and sql_risk >= 40 and time_risk > 0:
                 total_risk *= 2.0  # Double risk for dangerous off-hours sensitive operations
+            
+            # Critical risk for dangerous operations on sensitive data
+            if is_dangerous_sensitive:
+                total_risk = max(total_risk * 2.5, 75)  # Ensure minimum 75 for dangerous sensitive ops
             
             # Ensure score is within 0-100 range
             return min(max(int(total_risk), 0), 100)

@@ -12,7 +12,7 @@ from utils.admin_config import AdminConfig
 
 # Configure page
 st.set_page_config(
-    page_title="SQL Threat Explainer", 
+    page_title="Database Activity Review", 
     layout="wide",
     initial_sidebar_state="expanded"
 )
@@ -33,7 +33,7 @@ def get_components():
 components = get_components()
 
 # Sensitive objects and configuration
-SENSITIVE_TABLES = ['Salaries', 'Employees', 'HR_Records', 'CustomerData', 'AuditLog', 'Payroll', 'SSN', 'Credit']
+SENSITIVE_TABLES = ['Salaries', 'Employees', 'HR_Records', 'CustomerData', 'AuditLog', 'Payroll', 'SSN', 'Credit', 'Credit_Cards', 'CreditCards', 'Payment', 'Financial']
 REQUIRED_COLUMNS = ['_time', 'OS_User', 'Exec_User', 'DB_Type', 'DB_Name', 'Program', 'Module', 'Src_Host', 'Src_IP', 'Accessed_Obj', 'Accessed_Obj_Owner', 'Statement', 'MS_Context']
 
 # Load test dataset
@@ -98,7 +98,7 @@ def generate_risk_narrative(row, risk_score, anomalies):
 def main():
     # Professional navigation sidebar
     with st.sidebar:
-        st.title("🔍 SQL Threat Explainer")
+        st.title("🔍 Database Activity Review")
         st.markdown("---")
         
         # Navigation menu
@@ -152,7 +152,7 @@ def main():
                 st.rerun()
 
     # Main content area
-    st.title("🔍 Insider Threat SQL Activity Explainer")
+    st.title("🔍 Database Activity Review")
     st.markdown("### Advanced Risk Analysis & Compliance Reporting")
 
     # Initialize variables
